@@ -60,6 +60,10 @@ export function NewChatDialog() {
   function handleSelectUser(userId: string) {
     startTransition(async () => {
       const result = await createDirectChat(userId);
+      if (result.error) {
+        alert(result.error);
+        return;
+      }
       if (result.chat_id) {
         setOpen(false);
         setQuery("");

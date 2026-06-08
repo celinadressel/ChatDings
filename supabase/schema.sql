@@ -56,6 +56,17 @@ ALTER TABLE public.chats      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.chat_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.messages   ENABLE ROW LEVEL SECURITY;
 
+-- ─── Hilfsfunktion für RLS (verhindert unendliche Rekursion) ──
+CREATE OR REPLACE FUNCTION public.is_chat_member(chat_id UUID, user_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.chat_members cm
+    WHERE cm.chat_id = $1 AND cm.user_id = $2
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- profiles: jeder kann lesen, nur eigenes Profil bearbeiten
 CREATE POLICY "profiles_select_all"
   ON public.profiles FOR SELECT USING (true);
@@ -75,10 +86,8 @@ CREATE POLICY "chats_select_member"
   ON public.chats FOR SELECT
   TO authenticated
   USING (
-    EXISTS (
-      SELECT 1 FROM public.chat_members
-      WHERE chat_id = chats.id AND user_id = auth.uid()
-    )
+    created_by = auth.uid() OR
+    public.is_chat_member(id, auth.uid())
   );
 
 CREATE POLICY "chats_insert_authenticated"
@@ -91,10 +100,8 @@ CREATE POLICY "chat_members_select_member"
   ON public.chat_members FOR SELECT
   TO authenticated
   USING (
-    EXISTS (
-      SELECT 1 FROM public.chat_members cm
-      WHERE cm.chat_id = chat_members.chat_id AND cm.user_id = auth.uid()
-    )
+    user_id = auth.uid() OR
+    public.is_chat_member(chat_id, auth.uid())
   );
 
 CREATE POLICY "chat_members_insert_authenticated"
@@ -106,22 +113,14 @@ CREATE POLICY "chat_members_insert_authenticated"
 CREATE POLICY "messages_select_member"
   ON public.messages FOR SELECT
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.chat_members
-      WHERE chat_id = messages.chat_id AND user_id = auth.uid()
-    )
-  );
+  USING (public.is_chat_member(chat_id, auth.uid()));
 
 CREATE POLICY "messages_insert_member"
   ON public.messages FOR INSERT
   TO authenticated
   WITH CHECK (
     auth.uid() = sender_id AND
-    EXISTS (
-      SELECT 1 FROM public.chat_members
-      WHERE chat_id = messages.chat_id AND user_id = auth.uid()
-    )
+    public.is_chat_member(chat_id, auth.uid())
   );
 
 CREATE POLICY "messages_update_own"
