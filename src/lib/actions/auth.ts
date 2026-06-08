@@ -33,19 +33,8 @@ export async function signUp(formData: FormData) {
     return { error: authError.message };
   }
 
-  // 2. Profil in public.profiles anlegen
-  if (authData.user) {
-    const { error: profileError } = await supabase.from("profiles").insert({
-      id: authData.user.id,
-      username,
-      display_name,
-    });
-
-    if (profileError) {
-      return { error: profileError.message };
-    }
-  }
-
+  // 2. Das Profil wird automatisch per PostgreSQL-Trigger (on_auth_user_created) in der DB angelegt.
+  
   revalidatePath("/", "layout");
   redirect("/chat");
 }
