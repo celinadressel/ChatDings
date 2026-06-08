@@ -80,25 +80,29 @@ SUPABASE_DB_PASSWORD=EUER_DB_PASSWORT
 
 ### 3. Datenbank einrichten
 
-Falls noch nicht geschehen: Gehe im Supabase Dashboard zu **SQL Editor** und führe das Skript aus:
+> [!NOTE]
+> **Für das aktuelle Projekt `gpdrvalixxggxhwocwgm` ist die Datenbank bereits vollständig eingerichtet und das Schema eingespielt!** Ihr müsst diesen Schritt also nicht manuell ausführen.
 
-```
+Für eine manuelle Einrichtung oder Neuinstallation: Gehe im Supabase Dashboard zu **SQL Editor** und führe das Skript aus:
+
+```sql
 supabase/schema.sql
 ```
 
 Das Skript erstellt:
 - Tabellen: `profiles`, `chats`, `chat_members`, `messages`
-- Row Level Security (RLS) Policies
+- Row Level Security (RLS) Policies (mit modernen Best Practices wie `TO authenticated` & `WITH CHECK` Einschränkungen)
 - Indizes für Performance
 - Automatische `updated_at`-Trigger
 - Realtime-Publikation für `messages`
+- PostgreSQL-Trigger `on_auth_user_created` zur automatischen Profil-Erstellung bei Registrierung
 
 ### 4. Supabase Auth konfigurieren
 
 Im Supabase Dashboard unter **Authentication > Settings**:
 - **Site URL**: `http://localhost:3000`
 - **Redirect URLs**: `http://localhost:3000/**`
-- E-Mail-Bestätigung für Entwicklung deaktivieren:
+- E-Mail-Bestätigung für Entwicklung deaktivieren (bereits deaktiviert):
   *Authentication > Providers > Email > Confirm email: **OFF***
 
 ### 5. Entwicklungsserver starten
@@ -157,8 +161,8 @@ messages
 
 ```
 Register → signUp() Server Action
-  ├── supabase.auth.signUp()      ← Auth-User anlegen
-  └── profiles.insert()           ← Öffentliches Profil anlegen
+  ├── supabase.auth.signUp()              ← Auth-User anlegen
+  └── PostgreSQL-Trigger (handle_new_user)  ← Öffentliches Profil automatisch anlegen (SECURITY DEFINER)
   → Redirect zu /chat
 
 Login → signIn() Server Action
