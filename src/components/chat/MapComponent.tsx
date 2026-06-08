@@ -115,11 +115,19 @@ export default function MapComponent({
     return () => {
       isCancelled = true;
       if (mapInstance) {
-        mapInstance.remove();
+        try {
+          mapInstance.remove();
+        } catch (e) {
+          console.warn("Leaflet mapInstance cleanup error:", e);
+        }
         mapInstance = null;
       }
       if (mapRef.current) {
-        mapRef.current.remove();
+        try {
+          mapRef.current.remove();
+        } catch (e) {
+          console.warn("Leaflet mapRef cleanup error:", e);
+        }
         mapRef.current = null;
       }
     };

@@ -434,6 +434,7 @@ export function ChatContainer({
           {/* Map Container */}
           <div className="flex-1 min-h-[300px] relative p-2">
             <MapComponent
+              key={chatId}
               locations={locations}
               currentUserId={currentUserId}
               focusedUserId={focusedUserId}
