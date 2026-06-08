@@ -66,11 +66,14 @@ CREATE POLICY "profiles_insert_own"
 
 CREATE POLICY "profiles_update_own"
   ON public.profiles FOR UPDATE
-  USING (auth.uid() = id);
+  TO authenticated
+  USING (auth.uid() = id)
+  WITH CHECK (auth.uid() = id);
 
 -- chats: nur Mitglieder sehen ihre Chats
 CREATE POLICY "chats_select_member"
   ON public.chats FOR SELECT
+  TO authenticated
   USING (
     EXISTS (
       SELECT 1 FROM public.chat_members
@@ -80,11 +83,13 @@ CREATE POLICY "chats_select_member"
 
 CREATE POLICY "chats_insert_authenticated"
   ON public.chats FOR INSERT
-  WITH CHECK (auth.role() = 'authenticated');
+  TO authenticated
+  WITH CHECK (true);
 
 -- chat_members: nur Mitglieder sehen Memberships
 CREATE POLICY "chat_members_select_member"
   ON public.chat_members FOR SELECT
+  TO authenticated
   USING (
     EXISTS (
       SELECT 1 FROM public.chat_members cm
@@ -94,11 +99,13 @@ CREATE POLICY "chat_members_select_member"
 
 CREATE POLICY "chat_members_insert_authenticated"
   ON public.chat_members FOR INSERT
-  WITH CHECK (auth.role() = 'authenticated');
+  TO authenticated
+  WITH CHECK (true);
 
 -- messages: nur Mitglieder lesen & schreiben
 CREATE POLICY "messages_select_member"
   ON public.messages FOR SELECT
+  TO authenticated
   USING (
     EXISTS (
       SELECT 1 FROM public.chat_members
@@ -108,6 +115,7 @@ CREATE POLICY "messages_select_member"
 
 CREATE POLICY "messages_insert_member"
   ON public.messages FOR INSERT
+  TO authenticated
   WITH CHECK (
     auth.uid() = sender_id AND
     EXISTS (
@@ -118,7 +126,9 @@ CREATE POLICY "messages_insert_member"
 
 CREATE POLICY "messages_update_own"
   ON public.messages FOR UPDATE
-  USING (auth.uid() = sender_id);
+  TO authenticated
+  USING (auth.uid() = sender_id)
+  WITH CHECK (auth.uid() = sender_id);
 
 -- ─── Realtime aktivieren ──────────────────────────────────────
 -- Im Supabase Dashboard: Database > Replication > messages Tabelle aktivieren
