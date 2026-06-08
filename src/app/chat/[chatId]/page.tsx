@@ -71,6 +71,9 @@ export default async function ChatPage({ params }: ChatPageProps) {
         isGroup={chat.is_group}
         memberCount={members?.length ?? 0}
         chatId={chatId}
+        members={(members ?? []) as any}
+        currentUserRole={membership.role as "admin" | "member"}
+        currentUserId={user.id}
       />
       <MessageList
         messages={messages ?? []}
