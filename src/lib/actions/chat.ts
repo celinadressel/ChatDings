@@ -147,3 +147,52 @@ export async function createGroupChat(data: {
   revalidatePath("/chat");
   return { chat_id: chat.id };
 }
+
+export async function addChatMember(chatId: string, userId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Nicht authentifiziert" };
+  }
+
+  const { error } = await supabase.from("chat_members").insert({
+    chat_id: chatId,
+    user_id: userId,
+    role: "member",
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath(`/chat/${chatId}`);
+  return { success: true };
+}
+
+export async function removeChatMember(chatId: string, userId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Nicht authentifiziert" };
+  }
+
+  const { error } = await supabase
+    .from("chat_members")
+    .delete()
+    .eq("chat_id", chatId)
+    .eq("user_id", userId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath(`/chat/${chatId}`);
+  revalidatePath("/chat");
+  return { success: true };
+}
