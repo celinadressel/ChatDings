@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import { MessageList } from "@/components/chat/MessageList";
@@ -79,6 +79,7 @@ interface LocationData {
   accuracy: number | null;
   is_sharing: boolean;
   expires_at: string | null;
+  chat_id: string | null;
   updated_at: string;
   profiles: {
     username: string;
@@ -96,7 +97,7 @@ export function ChatContainer({
   chatDisplayName,
 }: ChatContainerProps) {
   const supabase = createClient();
-  const memberIds = members.map((m) => m.user_id);
+  const memberIds = useMemo(() => members.map((m) => m.user_id), [members]);
 
   // Realtime messages state
   const [messages, setMessages] = useState<Message[]>(initialMessages);
@@ -112,9 +113,16 @@ export function ChatContainer({
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [duration, setDuration] = useState<number | null>(60); // Default 1 hour in minutes
   const [timeRemaining, setTimeRemaining] = useState<string | null>(null);
+  const [shareWithAll, setShareWithAll] = useState<boolean>(false);
 
   const watchId = useRef<number | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const shareWithAllRef = useRef<boolean>(false);
+  const lastPositionRef = useRef<{ latitude: number; longitude: number; accuracy: number | null } | null>(null);
+
+  useEffect(() => {
+    shareWithAllRef.current = shareWithAll;
+  }, [shareWithAll]);
 
   // Resize listener to detect desktop vs mobile layout
   useEffect(() => {
@@ -171,12 +179,80 @@ export function ChatContainer({
     };
   }, [chatId, supabase]);
 
+  // Helper function to stop local watch states without DB queries
+  const stopSharingLocally = useCallback(() => {
+    if (watchId.current !== null) {
+      navigator.geolocation.clearWatch(watchId.current);
+      watchId.current = null;
+    }
+    setIsSharing(false);
+    setExpiresAt(null);
+    setTimeRemaining(null);
+  }, []);
+
+  const stopSharing = useCallback(async () => {
+    stopSharingLocally();
+    await supabase.from("locations").delete().eq("user_id", currentUserId);
+  }, [currentUserId, stopSharingLocally, supabase]);
+
+  const startWatching = useCallback((expiryTime: string | null, forceShareWithAll?: boolean) => {
+    if (watchId.current !== null) return; // Already watching
+
+    const handlePositionUpdate = async (position: GeolocationPosition) => {
+      const { latitude, longitude, accuracy } = position.coords;
+      lastPositionRef.current = { latitude, longitude, accuracy };
+
+      // Double check client side expiry
+      if (expiryTime && new Date() > new Date(expiryTime)) {
+        stopSharing();
+        return;
+      }
+
+      const currentShareWithAll = forceShareWithAll !== undefined ? forceShareWithAll : shareWithAllRef.current;
+
+      await supabase.from("locations").upsert({
+        user_id: currentUserId,
+        latitude,
+        longitude,
+        accuracy,
+        is_sharing: true,
+        expires_at: expiryTime,
+        chat_id: currentShareWithAll ? null : chatId,
+        updated_at: new Date().toISOString(),
+      });
+    };
+
+    const handlePositionError = (error: GeolocationPositionError) => {
+      console.error("Standortfehler:", error.message);
+      if (error.code === error.PERMISSION_DENIED) {
+        alert("GPS-Berechtigungen wurden verweigert. Standortfreigabe beendet.");
+        stopSharing();
+      }
+    };
+
+    // Begin tracking
+    navigator.geolocation.getCurrentPosition(handlePositionUpdate, handlePositionError, {
+      enableHighAccuracy: true,
+    });
+
+    watchId.current = navigator.geolocation.watchPosition(
+      handlePositionUpdate,
+      handlePositionError,
+      {
+        enableHighAccuracy: true,
+        maximumAge: 5000,
+        timeout: 10000,
+      }
+    );
+  }, [chatId, currentUserId, stopSharing, supabase]);
+
   // 2. Fetch and Subscribe to active member locations
   useEffect(() => {
     const loadLocations = async () => {
       const { data } = await supabase
         .from("locations")
         .select("*, profiles(*)")
+        .or(`chat_id.eq.${chatId},chat_id.is.null`)
         .in("user_id", memberIds);
 
       if (data) {
@@ -192,8 +268,13 @@ export function ChatContainer({
         // Check if current user is already sharing based on loaded data
         const currentUserLoc = activeLocs.find((loc) => loc.user_id === currentUserId);
         if (currentUserLoc) {
+          const isGlobal = currentUserLoc.chat_id === null;
           setIsSharing(true);
           setExpiresAt(currentUserLoc.expires_at);
+          setShareWithAll(isGlobal);
+          shareWithAllRef.current = isGlobal; // Sync ref immediately
+          // Auto-resume watching in the background
+          startWatching(currentUserLoc.expires_at, isGlobal);
         }
       }
     };
@@ -215,8 +296,9 @@ export function ChatContainer({
             if (memberIds.includes(newLoc.user_id)) {
               const now = new Date();
               const isExpired = newLoc.expires_at && new Date(newLoc.expires_at) <= now;
+              const isSharedWithThisChat = newLoc.chat_id === chatId || newLoc.chat_id === null;
 
-              if (!newLoc.is_sharing || isExpired) {
+              if (!newLoc.is_sharing || isExpired || !isSharedWithThisChat) {
                 setLocations((prev) => prev.filter((l) => l.user_id !== newLoc.user_id));
                 if (newLoc.user_id === currentUserId) {
                   stopSharingLocally();
@@ -244,18 +326,7 @@ export function ChatContainer({
     return () => {
       supabase.removeChannel(locationChannel);
     };
-  }, [chatId, currentUserId, supabase]);
-
-  // Helper function to stop local watch states without DB queries
-  const stopSharingLocally = () => {
-    if (watchId.current !== null) {
-      navigator.geolocation.clearWatch(watchId.current);
-      watchId.current = null;
-    }
-    setIsSharing(false);
-    setExpiresAt(null);
-    setTimeRemaining(null);
-  };
+  }, [chatId, currentUserId, memberIds, members, startWatching, stopSharingLocally, supabase]);
 
   // 3. Periodic cleanups of expired locations & remaining time calculations
   useEffect(() => {
@@ -326,53 +397,24 @@ export function ChatContainer({
 
     setIsSharing(true);
     setExpiresAt(expiryTime);
+    startWatching(expiryTime, shareWithAll);
+  };
 
-    const handlePositionUpdate = async (position: GeolocationPosition) => {
-      const { latitude, longitude, accuracy } = position.coords;
-
-      // Double check client side expiry
-      if (expiryTime && new Date() > new Date(expiryTime)) {
-        stopSharing();
-        return;
-      }
-
+  const handleToggleShareWithAll = async (newValue: boolean) => {
+    setShareWithAll(newValue);
+    if (isSharing && lastPositionRef.current) {
+      const { latitude, longitude, accuracy } = lastPositionRef.current;
       await supabase.from("locations").upsert({
         user_id: currentUserId,
         latitude,
         longitude,
         accuracy,
         is_sharing: true,
-        expires_at: expiryTime,
+        expires_at: expiresAt,
+        chat_id: newValue ? null : chatId,
         updated_at: new Date().toISOString(),
       });
-    };
-
-    const handlePositionError = (error: GeolocationPositionError) => {
-      console.error("Standortfehler:", error.message);
-      alert(`Fehler beim Laden des Standorts: ${error.message}. Bitte überprüfe deine GPS-Berechtigungen.`);
-      stopSharingLocally();
-    };
-
-    // Begin tracking
-    navigator.geolocation.getCurrentPosition(handlePositionUpdate, handlePositionError, {
-      enableHighAccuracy: true,
-    });
-
-    watchId.current = navigator.geolocation.watchPosition(
-      handlePositionUpdate,
-      handlePositionError,
-      {
-        enableHighAccuracy: true,
-        maximumAge: 5000,
-        timeout: 10000,
-      }
-    );
-  };
-
-  // 5. Stop Live Location Sharing
-  const stopSharing = async () => {
-    stopSharingLocally();
-    await supabase.from("locations").delete().eq("user_id", currentUserId);
+    }
   };
 
   const activeSharersCount = locations.length;
@@ -444,14 +486,28 @@ export function ChatContainer({
           {/* Sharing Controls Dashboard */}
           <div className="p-4 border-t border-border/50 bg-card/40 backdrop-blur-sm space-y-4 shrink-0">
             {isSharing ? (
-              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 space-y-3">
+              <div className={cn(
+                "rounded-xl border p-3.5 space-y-3 transition-all duration-300",
+                shareWithAll 
+                  ? "border-cyan-500/20 bg-cyan-500/5 shadow-[0_0_15px_rgba(6,182,212,0.05)]" 
+                  : "border-emerald-500/20 bg-emerald-500/5 shadow-[0_0_15px_rgba(16,185,129,0.05)]"
+              )}>
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium">
+                  <div className={cn(
+                    "flex items-center gap-2 text-sm font-medium",
+                    shareWithAll ? "text-cyan-400" : "text-emerald-400"
+                  )}>
                     <span className="flex h-2.5 w-2.5 relative">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                      <span className={cn(
+                        "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75",
+                        shareWithAll ? "bg-cyan-400" : "bg-emerald-400"
+                      )}></span>
+                      <span className={cn(
+                        "relative inline-flex rounded-full h-2.5 w-2.5",
+                        shareWithAll ? "bg-cyan-500" : "bg-emerald-500"
+                      )}></span>
                     </span>
-                    Du teilst deinen Standort live
+                    {shareWithAll ? "Standort mit allen Kontakten geteilt" : "Du teilst deinen Standort live (nur dieser Chat)"}
                   </div>
                   {timeRemaining && (
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-background/50 px-2 py-0.5 rounded-full font-mono">
@@ -461,12 +517,40 @@ export function ChatContainer({
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground leading-normal">
-                  Mitglieder dieses Chats sehen dich jetzt auf der Karte. Dein Standort wird automatisch aktualisiert.
+                  {shareWithAll 
+                    ? "Alle deine Chat-Kontakte können dich jetzt auf der Karte sehen. Dein Standort wird automatisch aktualisiert."
+                    : "Mitglieder dieses Chats sehen dich jetzt auf der Karte. Dein Standort wird automatisch aktualisiert."}
                 </p>
+
+                {/* Scoped Sharing Toggle when Active */}
+                <div className="flex items-center justify-between pt-2 border-t border-border/10">
+                  <div className="space-y-0.5">
+                    <span className="text-[11px] font-semibold text-foreground">Mit allen Kontakten teilen</span>
+                    <p className="text-[9px] text-muted-foreground leading-tight">
+                      Gibt deinen Standort für all deine Kontakte frei.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleShareWithAll(!shareWithAll)}
+                    className={cn(
+                      "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+                      shareWithAll ? "bg-cyan-500" : "bg-muted"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-background shadow ring-0 transition duration-200 ease-in-out",
+                        shareWithAll ? "translate-x-4" : "translate-x-0"
+                      )}
+                    />
+                  </button>
+                </div>
+
                 <Button
                   onClick={stopSharing}
                   variant="destructive"
-                  className="w-full text-xs h-9 rounded-lg"
+                  className="w-full text-xs h-9 rounded-lg mt-1"
                 >
                   <StopCircle className="h-4 w-4 mr-2" />
                   Teilen beenden
@@ -479,6 +563,39 @@ export function ChatContainer({
                   <p className="text-xs text-muted-foreground leading-normal">
                     Gib deinen Live-Standort frei, damit andere Chat-Mitglieder sehen können, wo du bist.
                   </p>
+                </div>
+
+                {/* Scoped Sharing Toggle when Inactive */}
+                <div className={cn(
+                  "flex items-center justify-between p-2.5 rounded-xl border transition-all duration-300",
+                  shareWithAll 
+                    ? "border-cyan-500/30 bg-cyan-500/5 shadow-[0_0_12px_rgba(6,182,212,0.03)]" 
+                    : "border-border/50 bg-background/40"
+                )}>
+                  <div className="space-y-0.5 max-w-[70%]">
+                    <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <Compass className={cn("h-3.5 w-3.5", shareWithAll ? "text-cyan-400 animate-spin-slow" : "text-muted-foreground")} />
+                      Mit allen Kontakten teilen
+                    </span>
+                    <p className="text-[10px] text-muted-foreground leading-tight">
+                      Gibt deinen Standort für alle Kontakte frei, statt nur in diesem Chat.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShareWithAll(!shareWithAll)}
+                    className={cn(
+                      "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+                      shareWithAll ? "bg-cyan-500" : "bg-muted"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-background shadow ring-0 transition duration-200 ease-in-out",
+                        shareWithAll ? "translate-x-4" : "translate-x-0"
+                      )}
+                    />
+                  </button>
                 </div>
 
                 <div className="flex flex-col gap-2">
@@ -505,7 +622,12 @@ export function ChatContainer({
 
                 <Button
                   onClick={startSharing}
-                  className="w-full text-xs h-9 rounded-lg"
+                  className={cn(
+                    "w-full text-xs h-9 rounded-lg transition-all",
+                    shareWithAll 
+                      ? "bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg shadow-cyan-950/20" 
+                      : "bg-primary hover:bg-primary/90"
+                  )}
                 >
                   <MapPin className="h-4 w-4 mr-2" />
                   Live-Standort teilen
@@ -525,6 +647,14 @@ export function ChatContainer({
                     const isOwn = loc.user_id === currentUserId;
                     const name = loc.profiles?.display_name ?? loc.profiles?.username ?? "Mitglied";
                     const isFocused = focusedUserId === loc.user_id;
+                    const isGlobal = loc.chat_id === null;
+
+                    let circleBg = "bg-violet-500";
+                    if (isGlobal) {
+                      circleBg = isOwn ? "bg-cyan-500" : "bg-indigo-500";
+                    } else {
+                      circleBg = isOwn ? "bg-emerald-500" : "bg-violet-500";
+                    }
 
                     return (
                       <button
@@ -536,13 +666,19 @@ export function ChatContainer({
                         )}
                       >
                         <div className="flex items-center gap-2 min-w-0">
-                          <div className={cn(
-                            "w-2 h-2 rounded-full",
-                            isOwn ? "bg-emerald-500" : "bg-violet-500"
-                          )} />
+                          <div className={cn("w-2 h-2 rounded-full shrink-0", circleBg)} />
                           <span className="font-medium truncate text-foreground">
                             {name} {isOwn && "(Du)"}
                           </span>
+                          {isGlobal ? (
+                            <span className="text-[9px] scale-90 px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shrink-0 font-normal">
+                              Global
+                            </span>
+                          ) : (
+                            <span className="text-[9px] scale-90 px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 shrink-0 font-normal">
+                              Chat
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0 font-mono">
                           Fokus

@@ -186,6 +186,22 @@
   }
 }
 
+.live-marker-pulse-emerald {
+  background-color: color-mix(in srgb, var(--color-emerald-500) 25%, transparent) !important;
+}
+
+.live-marker-pulse-violet {
+  background-color: color-mix(in srgb, var(--color-violet-500) 25%, transparent) !important;
+}
+
+.live-marker-pulse-cyan {
+  background-color: color-mix(in srgb, var(--color-cyan-500) 25%, transparent) !important;
+}
+
+.live-marker-pulse-indigo {
+  background-color: color-mix(in srgb, var(--color-indigo-500) 25%, transparent) !important;
+}
+
 /* Custom styles to match the dark theme for the leaflet map wrapper */
 .leaflet-container {
   background: oklch(var(--background)) !important;

@@ -10,6 +10,7 @@ interface LocationData {
   accuracy: number | null;
   is_sharing: boolean;
   expires_at: string | null;
+  chat_id: string | null;
   updated_at: string;
   profiles: {
     username: string;
@@ -157,18 +158,32 @@ export default function MapComponent({
         const displayName = loc.profiles?.display_name ?? loc.profiles?.username ?? "Unbekannt";
         const initials = getInitials(displayName);
         const isOwn = loc.user_id === currentUserId;
+        const isGlobal = loc.chat_id === null;
 
         // Custom HTML Icon
         const avatarHtml = loc.profiles?.avatar_url 
           ? `<img src="${loc.profiles.avatar_url}" alt="${displayName}" class="w-full h-full object-cover rounded-full" />`
           : `<span>${initials}</span>`;
 
-        // Pulse and style matches primary theme color
+        let borderColor = "border-violet-500";
+        let pulseColor = "violet";
+        let circleColor = isOwn ? "#10b981" : "#8b5cf6"; // Default emerald/violet
+        
+        if (isGlobal) {
+          borderColor = isOwn ? "border-cyan-500" : "border-indigo-500";
+          pulseColor = isOwn ? "cyan" : "indigo";
+          circleColor = isOwn ? "#06b6d4" : "#6366f1"; // Cyan or Indigo
+        } else {
+          borderColor = isOwn ? "border-emerald-500" : "border-violet-500";
+          pulseColor = isOwn ? "emerald" : "violet";
+          circleColor = isOwn ? "#10b981" : "#8b5cf6"; // Emerald or Violet
+        }
+
         const icon = L.divIcon({
           className: "live-marker",
           html: `
-            <div class="live-marker-pulse"></div>
-            <div class="live-marker-avatar shadow-lg border-2 ${isOwn ? 'border-emerald-500' : 'border-violet-500'} bg-card text-foreground">
+            <div class="live-marker-pulse live-marker-pulse-${pulseColor}"></div>
+            <div class="live-marker-avatar shadow-lg border-2 ${borderColor} bg-card text-foreground">
               ${avatarHtml}
             </div>
           `,
@@ -181,17 +196,23 @@ export default function MapComponent({
         if (existing) {
           // Update position
           existing.marker.setLatLng(latLng);
+          // Update icon dynamic class to reflect state change
+          existing.marker.setIcon(icon);
           
           // Update Accuracy Circle if available
           if (loc.accuracy) {
             if (existing.circle) {
               existing.circle.setLatLng(latLng);
               existing.circle.setRadius(loc.accuracy);
+              existing.circle.setStyle({
+                color: circleColor,
+                fillColor: circleColor,
+              });
             } else {
               const circle = L.circle(latLng, {
                 radius: loc.accuracy,
-                color: isOwn ? "var(--color-emerald-500)" : "var(--color-violet-500)",
-                fillColor: isOwn ? "var(--color-emerald-500)" : "var(--color-violet-500)",
+                color: circleColor,
+                fillColor: circleColor,
                 fillOpacity: 0.08,
                 weight: 1,
               }).addTo(map);
@@ -211,13 +232,20 @@ export default function MapComponent({
             minute: "2-digit",
             second: "2-digit",
           });
+
+          const scopeBadge = loc.chat_id 
+            ? '<span style="font-size: 8px; font-weight: 500; padding: 1px 4px; border-radius: 4px; background: rgba(59, 130, 246, 0.1); color: rgb(96, 165, 250); border: 1px solid rgba(59, 130, 246, 0.2);">Nur dieser Chat</span>'
+            : '<span style="font-size: 8px; font-weight: 500; padding: 1px 4px; border-radius: 4px; background: rgba(139, 92, 246, 0.1); color: rgb(167, 139, 250); border: 1px solid rgba(139, 92, 246, 0.2);">Alle Kontakte</span>';
           
           let popupContent = `
-            <div class="space-y-1 select-none">
-              <p class="font-semibold text-sm text-foreground">${displayName}</p>
-              <p class="text-xs text-muted-foreground">@${loc.profiles?.username ?? "username"}</p>
-              <p class="text-[10px] text-muted-foreground mt-1">Zuletzt aktualisiert: ${timeStr}</p>
-              ${loc.accuracy ? `<p class="text-[10px] text-muted-foreground">Genauigkeit: ${Math.round(loc.accuracy)}m</p>` : ""}
+            <div style="font-family: inherit; line-height: 1.4; color: var(--foreground);" class="space-y-1 select-none">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="font-semibold text-xs">${displayName}</span>
+                ${scopeBadge}
+              </div>
+              <p class="text-[10px] text-muted-foreground" style="margin-top: 2px;">@${loc.profiles?.username ?? "username"}</p>
+              <p class="text-[9px] text-muted-foreground" style="margin-top: 4px;">Zuletzt aktualisiert: ${timeStr}</p>
+              ${loc.accuracy ? `<p class="text-[9px] text-muted-foreground">Genauigkeit: ${Math.round(loc.accuracy)}m</p>` : ""}
             </div>
           `;
           
@@ -228,8 +256,8 @@ export default function MapComponent({
           if (loc.accuracy) {
             circle = L.circle(latLng, {
               radius: loc.accuracy,
-              color: isOwn ? "#10b981" : "#8b5cf6", // Emerald or Violet
-              fillColor: isOwn ? "#10b981" : "#8b5cf6",
+              color: circleColor,
+              fillColor: circleColor,
               fillOpacity: 0.08,
               weight: 1,
             }).addTo(map);

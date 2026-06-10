@@ -147,6 +147,7 @@ export interface Database {
           accuracy: number | null;
           is_sharing: boolean;
           expires_at: string | null;
+          chat_id: string | null;
           updated_at: string;
         };
         Insert: {
@@ -156,6 +157,7 @@ export interface Database {
           accuracy?: number | null;
           is_sharing?: boolean;
           expires_at?: string | null;
+          chat_id?: string | null;
           updated_at?: string;
         };
         Update: {
@@ -164,6 +166,7 @@ export interface Database {
           accuracy?: number | null;
           is_sharing?: boolean;
           expires_at?: string | null;
+          chat_id?: string | null;
           updated_at?: string;
         };
         Relationships: [
@@ -172,6 +175,13 @@ export interface Database {
             columns: ["user_id"];
             isOneToOne: true;
             referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "locations_chat_id_fkey";
+            columns: ["chat_id"];
+            isOneToOne: false;
+            referencedRelation: "chats";
             referencedColumns: ["id"];
           }
         ];

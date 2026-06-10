@@ -182,6 +182,7 @@ CREATE TABLE IF NOT EXISTS public.locations (
   accuracy      DOUBLE PRECISION,
   is_sharing    BOOLEAN DEFAULT TRUE NOT NULL,
   expires_at    TIMESTAMPTZ DEFAULT NULL, -- NULL means indefinite sharing
+  chat_id       UUID REFERENCES public.chats(id) ON DELETE CASCADE, -- NULL means shared with all contacts
   updated_at    TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
@@ -198,11 +199,17 @@ CREATE POLICY "locations_select_shared" ON public.locations FOR SELECT
   TO authenticated
   USING (
     (user_id = auth.uid() OR
-    EXISTS (
-      SELECT 1 
-      FROM public.chat_members cm1
-      JOIN public.chat_members cm2 ON cm1.chat_id = cm2.chat_id
-      WHERE cm1.user_id = auth.uid() AND cm2.user_id = locations.user_id
+    (
+      -- If chat_id is set, the viewer must be a member of that specific chat
+      (locations.chat_id IS NOT NULL AND public.is_chat_member(locations.chat_id, auth.uid()))
+      OR
+      -- If chat_id is null, the viewer must share some chat with the user
+      (locations.chat_id IS NULL AND EXISTS (
+        SELECT 1 
+        FROM public.chat_members cm1
+        JOIN public.chat_members cm2 ON cm1.chat_id = cm2.chat_id
+        WHERE cm1.user_id = auth.uid() AND cm2.user_id = locations.user_id
+      ))
     )) AND (expires_at IS NULL OR expires_at > NOW())
   );
 
