@@ -103,7 +103,11 @@ export interface Database {
           id: string;
           chat_id: string;
           sender_id: string | null;
-          content: string;
+          content: string | null;   // nullable – Datei kann ohne Text gesendet werden
+          file_url: string | null;  // Pfad im Storage-Bucket
+          file_name: string | null; // Originaler Dateiname
+          file_type: string | null; // MIME-Type
+          file_size: number | null; // Bytes
           created_at: string;
           updated_at: string;
           is_deleted: boolean;
@@ -112,13 +116,21 @@ export interface Database {
           id?: string;
           chat_id: string;
           sender_id: string;
-          content: string;
+          content?: string | null;
+          file_url?: string | null;
+          file_name?: string | null;
+          file_type?: string | null;
+          file_size?: number | null;
           created_at?: string;
           updated_at?: string;
           is_deleted?: boolean;
         };
         Update: {
-          content?: string;
+          content?: string | null;
+          file_url?: string | null;
+          file_name?: string | null;
+          file_type?: string | null;
+          file_size?: number | null;
           updated_at?: string;
           is_deleted?: boolean;
         };

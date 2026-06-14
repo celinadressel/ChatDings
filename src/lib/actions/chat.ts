@@ -2,39 +2,40 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { sendMessageSchema, createChatSchema } from "@/lib/validations";
+import { createChatSchema } from "@/lib/validations";
 
 export async function sendMessage(formData: FormData) {
-  const raw = {
-    content: formData.get("content"),
-    chat_id: formData.get("chat_id"),
-  };
+  const content = (formData.get("content") as string | null)?.trim() || null;
+  const chat_id = formData.get("chat_id") as string | null;
+  const file_url = formData.get("file_url") as string | null;
+  const file_name = formData.get("file_name") as string | null;
+  const file_type = formData.get("file_type") as string | null;
+  const file_size_raw = formData.get("file_size") as string | null;
+  const file_size = file_size_raw ? parseInt(file_size_raw, 10) : null;
 
-  const parsed = sendMessageSchema.safeParse(raw);
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0].message };
-  }
+  if (!chat_id) return { error: "Ungültige Chat-ID" };
+  if (!content && !file_url) return { error: "Nachricht oder Datei erforderlich" };
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    return { error: "Nicht authentifiziert" };
-  }
+  if (!user) return { error: "Nicht authentifiziert" };
 
   const { error } = await supabase.from("messages").insert({
-    chat_id: parsed.data.chat_id,
+    chat_id,
     sender_id: user.id,
-    content: parsed.data.content,
+    content: content ?? "",
+    file_url: file_url ?? null,
+    file_name: file_name ?? null,
+    file_type: file_type ?? null,
+    file_size: file_size ?? null,
   });
 
-  if (error) {
-    return { error: error.message };
-  }
+  if (error) return { error: error.message };
 
-  revalidatePath(`/chat/${parsed.data.chat_id}`);
+  revalidatePath(`/chat/${chat_id}`);
   return { success: true };
 }
 

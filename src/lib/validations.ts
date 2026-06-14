@@ -32,13 +32,24 @@ export type SignInInput = z.infer<typeof signInSchema>;
 
 // ─── Messages ─────────────────────────────────────────────────────────────────
 
-export const sendMessageSchema = z.object({
-  content: z
-    .string()
-    .min(1, "Nachricht darf nicht leer sein")
-    .max(4000, "Nachricht darf maximal 4000 Zeichen lang sein"),
-  chat_id: z.string().uuid("Ungültige Chat-ID"),
-});
+export const sendMessageSchema = z
+  .object({
+    content: z
+      .string()
+      .max(4000, "Nachricht darf maximal 4000 Zeichen lang sein")
+      .optional()
+      .nullable(),
+    chat_id: z.string().uuid("Ungültige Chat-ID"),
+    // Datei-Felder (werden nach Client-seitigem Upload befüllt)
+    file_url: z.string().optional().nullable(),
+    file_name: z.string().max(255).optional().nullable(),
+    file_type: z.string().optional().nullable(),
+    file_size: z.number().int().positive().max(10 * 1024 * 1024).optional().nullable(),
+  })
+  .refine(
+    (data) => !!(data.content?.trim()) || !!data.file_url,
+    { message: "Nachricht oder Datei erforderlich" }
+  );
 
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;
 
@@ -51,3 +62,29 @@ export const createChatSchema = z.object({
 });
 
 export type CreateChatInput = z.infer<typeof createChatSchema>;
+
+// ─── File Upload ──────────────────────────────────────────────────────────────
+
+export const ALLOWED_FILE_TYPES = [
+  // Bilder
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/svg+xml",
+  // Dokumente
+  "text/plain",
+  "application/pdf",
+  // Archive
+  "application/zip",
+  "application/x-zip-compressed",
+  // Video
+  "video/mp4",
+  "video/webm",
+  // Audio
+  "audio/mpeg",
+  "audio/wav",
+  "audio/ogg",
+] as const;
+
+export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB in Bytes

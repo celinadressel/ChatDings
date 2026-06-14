@@ -42,14 +42,28 @@ export default async function ChatPage({ params }: ChatPageProps) {
     .select("user_id, role, profiles(*)")
     .eq("chat_id", chatId);
 
-  // Nachrichten laden
-  const { data: messages } = await supabase
+  // Nachrichten laden (inkl. Datei-Felder)
+  const { data: rawMessages } = await supabase
     .from("messages")
     .select("*, profiles!sender_id(*)")
     .eq("chat_id", chatId)
     .eq("is_deleted", false)
     .order("created_at", { ascending: true })
     .limit(100);
+
+  // Signed URLs für Datei-Nachrichten generieren (1 Stunde gültig)
+  // Server Component → createSignedUrl läuft server-seitig mit Auth
+  const messages = await Promise.all(
+    (rawMessages ?? []).map(async (msg) => {
+      if (!msg.file_url) {
+        return { ...msg, signed_url: null };
+      }
+      const { data } = await supabase.storage
+        .from("chat-attachments")
+        .createSignedUrl(msg.file_url, 3600);
+      return { ...msg, signed_url: data?.signedUrl ?? null };
+    })
+  );
 
   // Chat-Name für DMs aus dem anderen Mitglied ableiten
   let chatDisplayName = chat.name ?? "Unbenannter Chat";
@@ -76,10 +90,11 @@ export default async function ChatPage({ params }: ChatPageProps) {
         currentUserId={user.id}
       />
       <MessageList
-        messages={messages ?? []}
+        messages={messages}
         currentUserId={user.id}
       />
-      <MessageInput chatId={chatId} />
+      {/* currentUserId wird für den Storage-Pfad beim Upload benötigt */}
+      <MessageInput chatId={chatId} currentUserId={user.id} />
     </div>
   );
 }
