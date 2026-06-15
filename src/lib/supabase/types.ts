@@ -141,6 +141,7 @@ export interface Database {
       };
       locations: {
         Row: {
+          id: string;
           user_id: string;
           latitude: number;
           longitude: number;
@@ -151,6 +152,7 @@ export interface Database {
           updated_at: string;
         };
         Insert: {
+          id?: string;
           user_id: string;
           latitude: number;
           longitude: number;
@@ -161,6 +163,8 @@ export interface Database {
           updated_at?: string;
         };
         Update: {
+          id?: string;
+          user_id?: string;
           latitude?: number;
           longitude?: number;
           accuracy?: number | null;
@@ -173,7 +177,7 @@ export interface Database {
           {
             foreignKeyName: "locations_user_id_fkey";
             columns: ["user_id"];
-            isOneToOne: true;
+            isOneToOne: false;
             referencedRelation: "profiles";
             referencedColumns: ["id"];
           },

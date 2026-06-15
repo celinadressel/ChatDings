@@ -176,14 +176,16 @@ CREATE OR REPLACE TRIGGER on_auth_user_created
 -- ─── Tabelle: locations ───────────────────────────────────────
 -- ============================================================
 CREATE TABLE IF NOT EXISTS public.locations (
-  user_id       UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id       UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
   latitude      DOUBLE PRECISION NOT NULL,
   longitude     DOUBLE PRECISION NOT NULL,
   accuracy      DOUBLE PRECISION,
   is_sharing    BOOLEAN DEFAULT TRUE NOT NULL,
   expires_at    TIMESTAMPTZ DEFAULT NULL, -- NULL means indefinite sharing
   chat_id       UUID REFERENCES public.chats(id) ON DELETE CASCADE, -- NULL means shared with all contacts
-  updated_at    TIMESTAMPTZ DEFAULT NOW() NOT NULL
+  updated_at    TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  CONSTRAINT locations_user_id_chat_id_key UNIQUE NULLS NOT DISTINCT (user_id, chat_id)
 );
 
 -- Row Level Security (RLS)
@@ -215,4 +217,5 @@ CREATE POLICY "locations_select_shared" ON public.locations FOR SELECT
 
 -- Realtime aktivieren für locations
 ALTER PUBLICATION supabase_realtime ADD TABLE public.locations;
+ALTER TABLE public.locations REPLICA IDENTITY DEFAULT;
 

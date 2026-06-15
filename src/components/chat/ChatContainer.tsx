@@ -73,6 +73,7 @@ interface ChatContainerProps {
 }
 
 interface LocationData {
+  id: string;
   user_id: string;
   latitude: number;
   longitude: number;
@@ -119,6 +120,17 @@ export function ChatContainer({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const shareWithAllRef = useRef<boolean>(false);
   const lastPositionRef = useRef<{ latitude: number; longitude: number; accuracy: number | null } | null>(null);
+
+  const isMounted = useRef<boolean>(true);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+      if (watchId.current !== null) {
+        navigator.geolocation.clearWatch(watchId.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     shareWithAllRef.current = shareWithAll;
@@ -185,20 +197,41 @@ export function ChatContainer({
       navigator.geolocation.clearWatch(watchId.current);
       watchId.current = null;
     }
-    setIsSharing(false);
-    setExpiresAt(null);
-    setTimeRemaining(null);
+    if (isMounted.current) {
+      setIsSharing(false);
+      setExpiresAt(null);
+      setTimeRemaining(null);
+    }
   }, []);
 
   const stopSharing = useCallback(async () => {
+    console.log("stopSharing triggered");
     stopSharingLocally();
-    await supabase.from("locations").delete().eq("user_id", currentUserId);
-  }, [currentUserId, stopSharingLocally, supabase]);
+    try {
+      let res;
+      if (shareWithAll) {
+        res = await supabase.from("locations").delete().eq("user_id", currentUserId).is("chat_id", null);
+      } else {
+        res = await supabase.from("locations").delete().eq("user_id", currentUserId).eq("chat_id", chatId);
+      }
+      if (res.error) {
+        console.error("Error deleting location row from DB:", res.error);
+      } else {
+        console.log("Location successfully deleted from DB.");
+      }
+    } catch (err) {
+      console.error("Unexpected error in stopSharing:", err);
+    }
+  }, [currentUserId, chatId, shareWithAll, stopSharingLocally, supabase]);
 
   const startWatching = useCallback((expiryTime: string | null, forceShareWithAll?: boolean) => {
+    if (!isMounted.current) return;
     if (watchId.current !== null) return; // Already watching
 
     const handlePositionUpdate = async (position: GeolocationPosition) => {
+      // Abort if the watch has been stopped or component unmounted in the meantime
+      if (!isMounted.current || watchId.current === null) return;
+
       const { latitude, longitude, accuracy } = position.coords;
       lastPositionRef.current = { latitude, longitude, accuracy };
 
@@ -210,7 +243,10 @@ export function ChatContainer({
 
       const currentShareWithAll = forceShareWithAll !== undefined ? forceShareWithAll : shareWithAllRef.current;
 
-      await supabase.from("locations").upsert({
+      if (!isMounted.current || watchId.current === null) return;
+
+      // 1. Ensure/upsert the row for this specific chat context exists in the DB
+      const resUpsert = await supabase.from("locations").upsert({
         user_id: currentUserId,
         latitude,
         longitude,
@@ -219,7 +255,37 @@ export function ChatContainer({
         expires_at: expiryTime,
         chat_id: currentShareWithAll ? null : chatId,
         updated_at: new Date().toISOString(),
-      });
+      }, { onConflict: "user_id,chat_id" });
+
+      if (resUpsert.error) {
+        console.error(
+          "Error upserting current location:",
+          resUpsert.error.message,
+          "Code:", resUpsert.error.code,
+          "Details:", resUpsert.error.details
+        );
+      }
+
+      if (!isMounted.current || watchId.current === null) return;
+
+      // 2. Propagate new coordinates to all active shares of the user
+      const resUpdate = await supabase.from("locations")
+        .update({
+          latitude,
+          longitude,
+          accuracy,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", currentUserId);
+
+      if (resUpdate.error) {
+        console.error(
+          "Error propagating location updates to other chats:",
+          resUpdate.error.message,
+          "Code:", resUpdate.error.code,
+          "Details:", resUpdate.error.details
+        );
+      }
     };
 
     const handlePositionError = (error: GeolocationPositionError) => {
@@ -255,6 +321,8 @@ export function ChatContainer({
         .or(`chat_id.eq.${chatId},chat_id.is.null`)
         .in("user_id", memberIds);
 
+      if (!isMounted.current) return;
+
       if (data) {
         // Filter out expired locations locally
         const now = new Date();
@@ -263,18 +331,37 @@ export function ChatContainer({
           if (loc.expires_at && new Date(loc.expires_at) <= now) return false;
           return true;
         });
-        setLocations(activeLocs);
 
-        // Check if current user is already sharing based on loaded data
-        const currentUserLoc = activeLocs.find((loc) => loc.user_id === currentUserId);
-        if (currentUserLoc) {
-          const isGlobal = currentUserLoc.chat_id === null;
-          setIsSharing(true);
-          setExpiresAt(currentUserLoc.expires_at);
-          setShareWithAll(isGlobal);
-          shareWithAllRef.current = isGlobal; // Sync ref immediately
-          // Auto-resume watching in the background
-          startWatching(currentUserLoc.expires_at, isGlobal);
+        // Deduplicate activeLocs by user_id, prioritizing chat-specific entries over global ones
+        const uniqueLocs: LocationData[] = [];
+        const seenUsers = new Set<string>();
+        const sortedLocs = [...activeLocs].sort((a, b) => {
+          if (a.chat_id && !b.chat_id) return -1;
+          if (!a.chat_id && b.chat_id) return 1;
+          return 0;
+        });
+
+        for (const loc of sortedLocs) {
+          if (!seenUsers.has(loc.user_id)) {
+            seenUsers.add(loc.user_id);
+            uniqueLocs.push(loc);
+          }
+        }
+        
+        if (isMounted.current) {
+          setLocations(uniqueLocs);
+
+          // Check if current user is already sharing based on loaded data
+          const currentUserLoc = uniqueLocs.find((loc) => loc.user_id === currentUserId);
+          if (currentUserLoc && isMounted.current) {
+            const isGlobal = currentUserLoc.chat_id === null;
+            setIsSharing(true);
+            setExpiresAt(currentUserLoc.expires_at);
+            setShareWithAll(isGlobal);
+            shareWithAllRef.current = isGlobal; // Sync ref immediately
+            // Auto-resume watching in the background
+            startWatching(currentUserLoc.expires_at, isGlobal);
+          }
         }
       }
     };
@@ -291,6 +378,8 @@ export function ChatContainer({
           table: "locations",
         },
         (payload) => {
+          if (!isMounted.current) return;
+
           if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
             const newLoc = payload.new as any;
             if (memberIds.includes(newLoc.user_id)) {
@@ -299,25 +388,48 @@ export function ChatContainer({
               const isSharedWithThisChat = newLoc.chat_id === chatId || newLoc.chat_id === null;
 
               if (!newLoc.is_sharing || isExpired || !isSharedWithThisChat) {
-                setLocations((prev) => prev.filter((l) => l.user_id !== newLoc.user_id));
+                setLocations((prev) => prev.filter((l) => l.id !== newLoc.id));
                 if (newLoc.user_id === currentUserId) {
-                  stopSharingLocally();
+                  const isForThisChat = newLoc.chat_id === chatId || (newLoc.chat_id === null && shareWithAll);
+                  if (isForThisChat) {
+                    stopSharingLocally();
+                  }
                 }
               } else {
                 setLocations((prev) => {
-                  const filtered = prev.filter((l) => l.user_id !== newLoc.user_id);
+                  const filtered = prev.filter((l) => l.id !== newLoc.id);
                   const member = members.find((m) => m.user_id === newLoc.user_id);
                   const profile = member ? member.profiles : null;
-                  return [...filtered, { ...newLoc, profiles: profile }];
+                  const newEntry = { ...newLoc, profiles: profile };
+                  
+                  // Combine and deduplicate by user_id, prioritizing chat-specific
+                  const combined = [...filtered, newEntry];
+                  const uniqueList: LocationData[] = [];
+                  const seen = new Set<string>();
+                  const sorted = combined.sort((a, b) => {
+                    if (a.chat_id && !b.chat_id) return -1;
+                    if (!a.chat_id && b.chat_id) return 1;
+                    return 0;
+                  });
+                  for (const loc of sorted) {
+                    if (!seen.has(loc.user_id)) {
+                      seen.add(loc.user_id);
+                      uniqueList.push(loc);
+                    }
+                  }
+                  return uniqueList;
                 });
               }
             }
           } else if (payload.eventType === "DELETE") {
             const oldLoc = payload.old as any;
-            setLocations((prev) => prev.filter((l) => l.user_id !== oldLoc.user_id));
-            if (oldLoc.user_id === currentUserId) {
-              stopSharingLocally();
-            }
+            setLocations((prev) => {
+              const deletedLoc = prev.find((l) => l.id === oldLoc.id);
+              if (deletedLoc && deletedLoc.user_id === currentUserId) {
+                stopSharingLocally();
+              }
+              return prev.filter((l) => l.id !== oldLoc.id);
+            });
           }
         }
       )
@@ -326,7 +438,7 @@ export function ChatContainer({
     return () => {
       supabase.removeChannel(locationChannel);
     };
-  }, [chatId, currentUserId, memberIds, members, startWatching, stopSharingLocally, supabase]);
+  }, [chatId, currentUserId, memberIds, members, startWatching, stopSharingLocally, supabase, shareWithAll]);
 
   // 3. Periodic cleanups of expired locations & remaining time calculations
   useEffect(() => {
@@ -372,14 +484,7 @@ export function ChatContainer({
     };
   }, [isSharing, expiresAt]);
 
-  // Unmount cleanup to stop sharing
-  useEffect(() => {
-    return () => {
-      if (watchId.current !== null) {
-        navigator.geolocation.clearWatch(watchId.current);
-      }
-    };
-  }, []);
+  // Unmount cleanup is handled in the mounting lifecycle useEffect above
 
   // 4. Start Live Location Sharing
   const startSharing = async () => {
@@ -404,16 +509,33 @@ export function ChatContainer({
     setShareWithAll(newValue);
     if (isSharing && lastPositionRef.current) {
       const { latitude, longitude, accuracy } = lastPositionRef.current;
-      await supabase.from("locations").upsert({
-        user_id: currentUserId,
-        latitude,
-        longitude,
-        accuracy,
-        is_sharing: true,
-        expires_at: expiresAt,
-        chat_id: newValue ? null : chatId,
-        updated_at: new Date().toISOString(),
-      });
+      if (newValue) {
+        // Switching to global: delete chat-specific share and upsert global share
+        await supabase.from("locations").delete().eq("user_id", currentUserId).eq("chat_id", chatId);
+        await supabase.from("locations").upsert({
+          user_id: currentUserId,
+          latitude,
+          longitude,
+          accuracy,
+          is_sharing: true,
+          expires_at: expiresAt,
+          chat_id: null,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "user_id,chat_id" });
+      } else {
+        // Switching to chat-specific: delete global share and upsert chat-specific share
+        await supabase.from("locations").delete().eq("user_id", currentUserId).is("chat_id", null);
+        await supabase.from("locations").upsert({
+          user_id: currentUserId,
+          latitude,
+          longitude,
+          accuracy,
+          is_sharing: true,
+          expires_at: expiresAt,
+          chat_id: chatId,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "user_id,chat_id" });
+      }
     }
   };
 
