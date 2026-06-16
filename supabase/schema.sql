@@ -56,13 +56,26 @@ ALTER TABLE public.chats      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.chat_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.messages   ENABLE ROW LEVEL SECURITY;
 
--- ─── Hilfsfunktion für RLS (verhindert unendliche Rekursion) ──
+-- ─── Hilfsfunktionen für RLS (verhindern unendliche Rekursion) ──
 CREATE OR REPLACE FUNCTION public.is_chat_member(chat_id UUID, user_id UUID)
 RETURNS BOOLEAN AS $$
 BEGIN
   RETURN EXISTS (
     SELECT 1 FROM public.chat_members cm
     WHERE cm.chat_id = $1 AND cm.user_id = $2
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.is_chat_admin(chat_id UUID, user_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.chats c
+    WHERE c.id = chat_id AND c.created_by = user_id
+  ) OR EXISTS (
+    SELECT 1 FROM public.chat_members cm
+    WHERE cm.chat_id = chat_id AND cm.user_id = user_id AND cm.role = 'admin'
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -104,10 +117,20 @@ CREATE POLICY "chat_members_select_member"
     public.is_chat_member(chat_id, auth.uid())
   );
 
+-- Nur Chat-Admins dürfen Mitglieder hinzufügen
 CREATE POLICY "chat_members_insert_authenticated"
   ON public.chat_members FOR INSERT
   TO authenticated
-  WITH CHECK (true);
+  WITH CHECK (public.is_chat_admin(chat_id, auth.uid()));
+
+-- Nur Chat-Admins dürfen Mitglieder entfernen (Nutzer dürfen sich selbst entfernen)
+CREATE POLICY "chat_members_delete_member"
+  ON public.chat_members FOR DELETE
+  TO authenticated
+  USING (
+    user_id = auth.uid() OR
+    public.is_chat_admin(chat_id, auth.uid())
+  );
 
 -- messages: nur Mitglieder lesen & schreiben
 CREATE POLICY "messages_select_member"

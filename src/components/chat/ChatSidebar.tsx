@@ -23,6 +23,14 @@ interface Chat {
   name: string | null;
   is_group: boolean;
   created_at: string;
+  chat_members?: {
+    user_id: string;
+    profiles: {
+      id: string;
+      username: string;
+      display_name: string | null;
+    } | null;
+  }[];
   messages?: { content: string; created_at: string }[];
 }
 
@@ -100,7 +108,14 @@ export function ChatSidebar({ chats, currentUser }: ChatSidebarProps) {
             {chats.map((chat) => {
               const isActive = pathname === `/chat/${chat.id}`;
               const lastMessage = chat.messages?.[chat.messages.length - 1];
-              const displayName = chat.name ?? (chat.is_group ? "Gruppe" : "Direkt-Chat");
+              let displayName = chat.name ?? (chat.is_group ? "Gruppe" : "Direkt-Chat");
+              if (!chat.is_group && chat.chat_members && currentUser) {
+                const otherMember = chat.chat_members.find((m) => m.user_id !== currentUser.id);
+                const otherProfile = otherMember?.profiles;
+                if (otherProfile) {
+                  displayName = otherProfile.display_name ?? otherProfile.username ?? displayName;
+                }
+              }
 
               return (
                 <Link
