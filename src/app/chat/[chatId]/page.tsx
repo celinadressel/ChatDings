@@ -1,8 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound, redirect } from "next/navigation";
-import { MessageList } from "@/components/chat/MessageList";
-import { MessageInput } from "@/components/chat/MessageInput";
-import { ChatHeader } from "@/components/chat/ChatHeader";
+import { ChatContainer } from "@/components/chat/ChatContainer";
 
 interface ChatPageProps {
   params: Promise<{ chatId: string }>;
@@ -42,6 +40,8 @@ export default async function ChatPage({ params }: ChatPageProps) {
     .select("user_id, role, profiles(*)")
     .eq("chat_id", chatId);
 
+  if (!members) notFound();
+
   // Nachrichten laden
   const { data: messages } = await supabase
     .from("messages")
@@ -53,7 +53,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
 
   // Chat-Name für DMs aus dem anderen Mitglied ableiten
   let chatDisplayName = chat.name ?? "Unbenannter Chat";
-  if (!chat.is_group && members) {
+  if (!chat.is_group) {
     const otherMember = members.find((m) => m.user_id !== user.id);
     const otherProfile = otherMember?.profiles as
       | { display_name?: string | null; username?: string }
@@ -64,22 +64,39 @@ export default async function ChatPage({ params }: ChatPageProps) {
     }
   }
 
+  // Format type matching for TS
+  const formattedMembers = members.map((m) => ({
+    user_id: m.user_id,
+    role: m.role as "admin" | "member",
+    profiles: m.profiles as {
+      id: string;
+      username: string;
+      display_name: string | null;
+      avatar_url: string | null;
+      created_at: string;
+      updated_at: string;
+    } | null,
+  }));
+
+  const formattedMessages = (messages ?? []).map((m) => ({
+    id: m.id,
+    content: m.content,
+    created_at: m.created_at,
+    sender_id: m.sender_id,
+    profiles: m.profiles as {
+      username: string;
+      display_name: string | null;
+    } | null,
+  }));
+
   return (
-    <div className="flex flex-col h-full">
-      <ChatHeader
-        chatName={chatDisplayName}
-        isGroup={chat.is_group}
-        memberCount={members?.length ?? 0}
-        chatId={chatId}
-        members={(members ?? []) as any}
-        currentUserRole={membership.role as "admin" | "member"}
-        currentUserId={user.id}
-      />
-      <MessageList
-        messages={messages ?? []}
-        currentUserId={user.id}
-      />
-      <MessageInput chatId={chatId} />
-    </div>
+    <ChatContainer
+      chatId={chatId}
+      chat={chat}
+      initialMessages={formattedMessages}
+      members={formattedMembers}
+      currentUserId={user.id}
+      chatDisplayName={chatDisplayName}
+    />
   );
 }

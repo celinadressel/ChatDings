@@ -194,3 +194,51 @@ REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM PUBLIC;
 CREATE OR REPLACE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- ============================================================
+-- ─── Tabelle: locations ───────────────────────────────────────
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.locations (
+  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id       UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  latitude      DOUBLE PRECISION NOT NULL,
+  longitude     DOUBLE PRECISION NOT NULL,
+  accuracy      DOUBLE PRECISION,
+  is_sharing    BOOLEAN DEFAULT TRUE NOT NULL,
+  expires_at    TIMESTAMPTZ DEFAULT NULL, -- NULL means indefinite sharing
+  chat_id       UUID REFERENCES public.chats(id) ON DELETE CASCADE, -- NULL means shared with all contacts
+  updated_at    TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  CONSTRAINT locations_user_id_chat_id_key UNIQUE NULLS NOT DISTINCT (user_id, chat_id)
+);
+
+-- Row Level Security (RLS)
+ALTER TABLE public.locations ENABLE ROW LEVEL SECURITY;
+
+-- RLS-Richtlinien
+CREATE POLICY "locations_write_own" ON public.locations FOR ALL
+  TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "locations_select_shared" ON public.locations FOR SELECT
+  TO authenticated
+  USING (
+    (user_id = auth.uid() OR
+    (
+      -- If chat_id is set, the viewer must be a member of that specific chat
+      (locations.chat_id IS NOT NULL AND public.is_chat_member(locations.chat_id, auth.uid()))
+      OR
+      -- If chat_id is null, the viewer must share some chat with the user
+      (locations.chat_id IS NULL AND EXISTS (
+        SELECT 1 
+        FROM public.chat_members cm1
+        JOIN public.chat_members cm2 ON cm1.chat_id = cm2.chat_id
+        WHERE cm1.user_id = auth.uid() AND cm2.user_id = locations.user_id
+      ))
+    )) AND (expires_at IS NULL OR expires_at > NOW())
+  );
+
+-- Realtime aktivieren für locations
+ALTER PUBLICATION supabase_realtime ADD TABLE public.locations;
+ALTER TABLE public.locations REPLICA IDENTITY DEFAULT;
+
