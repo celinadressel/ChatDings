@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Map } from "lucide-react";
 import {
@@ -59,6 +59,7 @@ interface ChatHeaderProps {
   members?: ChatMemberWithProfile[];
   currentUserRole?: "admin" | "member";
   currentUserId?: string;
+  avatarUrl?: string | null;
 }
 
 export function ChatHeader({
@@ -66,6 +67,7 @@ export function ChatHeader({
   isGroup,
   memberCount,
   chatId,
+  avatarUrl,
   onToggleMap,
   isMapOpen = false,
   isSharingActive = false,
@@ -81,8 +83,22 @@ export function ChatHeader({
   const [isSearching, setIsSearching] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
-
   const isAdmin = currentUserRole === "admin";
+
+    <div className="shrink-0">
+      {isGroup ? (
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted">
+          <Users className="h-4 w-4 text-violet-400" />
+        </div>
+      ) : (
+        <Avatar className="h-9 w-9">
+          {avatarUrl ? <AvatarImage src={avatarUrl} alt={chatName} /> : null}
+          <AvatarFallback className="bg-blue-500/20 text-xs font-semibold text-blue-400">
+            {chatName ? getInitials(chatName) : <User className="h-4 w-4" />}
+          </AvatarFallback>
+        </Avatar>
+      )}
+    </div>
 
   async function handleSearch(value: string) {
     setSearchQuery(value);

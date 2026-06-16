@@ -52,6 +52,7 @@ interface Message {
   profiles: {
     username: string;
     display_name: string | null;
+    avatar_url: string | null;
   } | null;
 }
 
@@ -165,7 +166,7 @@ export function ChatContainer({
           // Fetch sender profile info
           const { data: profile } = await supabase
             .from("profiles")
-            .select("username, display_name")
+            .select("username, display_name, avatar_url")
             .eq("id", newMsg.sender_id)
             .single();
 

@@ -15,6 +15,7 @@ export interface Database {
           username: string;
           display_name: string | null;
           avatar_url: string | null;
+          status: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -23,6 +24,7 @@ export interface Database {
           username: string;
           display_name?: string | null;
           avatar_url?: string | null;
+          status?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -31,6 +33,7 @@ export interface Database {
           username?: string;
           display_name?: string | null;
           avatar_url?: string | null;
+          status?: string | null;
           updated_at?: string;
         };
         Relationships: [];

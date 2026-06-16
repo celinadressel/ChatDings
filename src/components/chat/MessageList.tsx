@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +13,7 @@ interface Message {
   profiles: {
     username: string;
     display_name: string | null;
+    avatar_url: string | null;
   } | null;
 }
 
@@ -78,6 +79,12 @@ export function MessageList({ messages, currentUserId }: MessageListProps) {
               <div className="w-8 shrink-0">
                 {!isSameAuthorAsPrev && (
                   <Avatar className="h-8 w-8">
+                    {message.profiles?.avatar_url ? (
+                      <AvatarImage
+                        src={message.profiles.avatar_url}
+                        alt={senderName}
+                      />
+                    ) : null}
                     <AvatarFallback
                       className={cn(
                         "text-xs font-semibold",
