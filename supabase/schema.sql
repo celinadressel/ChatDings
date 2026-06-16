@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   username      TEXT UNIQUE NOT NULL,
   display_name  TEXT,
   avatar_url    TEXT,
+  status        TEXT,
   created_at    TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   updated_at    TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );

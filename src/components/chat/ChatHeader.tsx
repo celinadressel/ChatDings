@@ -4,12 +4,23 @@ import { ArrowLeft, Users, User } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface ChatHeaderProps {
   chatName: string;
   isGroup: boolean;
   memberCount: number;
   chatId: string;
+  avatarUrl?: string | null;
+}
+
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 }
 
 export function ChatHeader({
@@ -17,6 +28,7 @@ export function ChatHeader({
   isGroup,
   memberCount,
   chatId,
+  avatarUrl,
 }: ChatHeaderProps) {
   return (
     <header className="flex items-center gap-3 border-b border-border/50 bg-card/30 backdrop-blur-sm px-4 py-3 shrink-0">
@@ -26,11 +38,18 @@ export function ChatHeader({
         </Button>
       </Link>
 
-      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted shrink-0">
+      <div className="shrink-0">
         {isGroup ? (
-          <Users className="h-4 w-4 text-violet-400" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted">
+            <Users className="h-4 w-4 text-violet-400" />
+          </div>
         ) : (
-          <User className="h-4 w-4 text-blue-400" />
+          <Avatar className="h-9 w-9">
+            {avatarUrl ? <AvatarImage src={avatarUrl} alt={chatName} /> : null}
+            <AvatarFallback className="bg-blue-500/20 text-xs font-semibold text-blue-400">
+              {chatName ? getInitials(chatName) : <User className="h-4 w-4" />}
+            </AvatarFallback>
+          </Avatar>
         )}
       </div>
 

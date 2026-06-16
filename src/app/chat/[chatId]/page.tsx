@@ -53,14 +53,20 @@ export default async function ChatPage({ params }: ChatPageProps) {
 
   // Chat-Name für DMs aus dem anderen Mitglied ableiten
   let chatDisplayName = chat.name ?? "Unbenannter Chat";
+  let chatAvatarUrl: string | null = null;
   if (!chat.is_group && members) {
     const otherMember = members.find((m) => m.user_id !== user.id);
     const otherProfile = otherMember?.profiles as
-      | { display_name?: string | null; username?: string }
+      | {
+          display_name?: string | null;
+          username?: string;
+          avatar_url?: string | null;
+        }
       | null;
     if (otherProfile) {
       chatDisplayName =
         otherProfile.display_name ?? otherProfile.username ?? chatDisplayName;
+      chatAvatarUrl = otherProfile.avatar_url ?? null;
     }
   }
 
@@ -71,6 +77,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
         isGroup={chat.is_group}
         memberCount={members?.length ?? 0}
         chatId={chatId}
+        avatarUrl={chatAvatarUrl}
       />
       <MessageList
         messages={messages ?? []}

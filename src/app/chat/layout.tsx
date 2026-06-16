@@ -32,6 +32,14 @@ export default async function ChatLayout({
         name,
         is_group,
         created_at,
+        chat_members (
+          user_id,
+          profiles (
+            username,
+            display_name,
+            avatar_url
+          )
+        ),
         messages (
           content,
           created_at,
@@ -44,7 +52,37 @@ export default async function ChatLayout({
     .order("joined_at", { ascending: false });
 
   type ChatEntry = NonNullable<typeof chatMembers>[0]["chats"];
-  const chats = (chatMembers ?? []).map((m) => m.chats).filter((c): c is NonNullable<ChatEntry> => c !== null);
+  const chats = (chatMembers ?? [])
+    .map((member) => {
+      const chat = member.chats;
+      if (!chat) return null;
+
+      const otherMember = chat.is_group
+        ? null
+        : chat.chat_members?.find((chatMember) => chatMember.user_id !== user.id);
+      const otherProfile = otherMember?.profiles as
+        | {
+            username: string;
+            display_name: string | null;
+            avatar_url: string | null;
+          }
+        | null
+        | undefined;
+
+      return {
+        ...chat,
+        display_name:
+          chat.name ??
+          (chat.is_group
+            ? "Gruppe"
+            : otherProfile?.display_name ?? otherProfile?.username ?? "Direkt-Chat"),
+        avatar_url: otherProfile?.avatar_url ?? null,
+      };
+    })
+    .filter((chat): chat is NonNullable<ChatEntry> & {
+      display_name: string;
+      avatar_url: string | null;
+    } => chat !== null);
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
