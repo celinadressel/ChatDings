@@ -20,10 +20,19 @@ import { NewChatDialog } from "@/components/chat/NewChatDialog";
 interface Chat {
   id: string;
   name: string | null;
+  display_name?: string;
+  avatar_url?: string | null;
   is_group: boolean;
   created_at: string;
-  display_name: string;
-  avatar_url: string | null;
+  chat_members?: {
+    user_id: string;
+    profiles: {
+      id: string;
+      username: string;
+      avatar_url: string | null;
+      display_name: string | null;
+    } | null;
+  }[];
   messages?: { content: string; created_at: string }[];
 }
 
@@ -67,6 +76,27 @@ function formatTime(dateStr: string) {
   });
 }
 
+function getChatDisplayData(chat: Chat, currentUser: Profile | null) {
+  let displayName =
+    chat.display_name ?? chat.name ?? (chat.is_group ? "Gruppe" : "Direkt-Chat");
+  let avatarUrl = chat.avatar_url ?? null;
+
+  if (!chat.is_group && chat.chat_members && currentUser) {
+    const otherMember = chat.chat_members.find(
+      (member) => member.user_id !== currentUser.id
+    );
+    const otherProfile = otherMember?.profiles;
+
+    if (otherProfile) {
+      displayName =
+        otherProfile.display_name ?? otherProfile.username ?? displayName;
+      avatarUrl = otherProfile.avatar_url;
+    }
+  }
+
+  return { displayName, avatarUrl };
+}
+
 export function ChatSidebar({ chats, currentUser }: ChatSidebarProps) {
   const pathname = usePathname();
 
@@ -86,22 +116,8 @@ export function ChatSidebar({ chats, currentUser }: ChatSidebarProps) {
         <div className="px-3 py-2">
           <div className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
             <Search className="h-4 w-4 shrink-0" />
-            <span>Suche…</span>
+            <span>Suche...</span>
           </div>
-        </div>
-
-        <div className="px-2 pb-2">
-          <Link
-            href="/chat/profile"
-            className={cn(
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all hover:bg-muted/60",
-              pathname === "/chat/profile" &&
-                "bg-primary/10 text-primary hover:bg-primary/15"
-            )}
-          >
-            <UserRound className="h-4 w-4 shrink-0" />
-            <span className="font-medium">Mein Profil</span>
-          </Link>
         </div>
 
         <ScrollArea className="flex-1 px-2">
@@ -116,6 +132,11 @@ export function ChatSidebar({ chats, currentUser }: ChatSidebarProps) {
               {chats.map((chat) => {
                 const isActive = pathname === `/chat/${chat.id}`;
                 const lastMessage = chat.messages?.[chat.messages.length - 1];
+                const { displayName, avatarUrl } = getChatDisplayData(
+                  chat,
+                  currentUser
+                );
+
                 return (
                   <Link
                     key={chat.id}
@@ -127,11 +148,8 @@ export function ChatSidebar({ chats, currentUser }: ChatSidebarProps) {
                     )}
                   >
                     <Avatar className="h-10 w-10 shrink-0">
-                      {!chat.is_group && chat.avatar_url ? (
-                        <AvatarImage
-                          src={chat.avatar_url}
-                          alt={chat.display_name}
-                        />
+                      {avatarUrl ? (
+                        <AvatarImage src={avatarUrl} alt={displayName} />
                       ) : null}
                       <AvatarFallback
                         className={cn(
@@ -144,10 +162,11 @@ export function ChatSidebar({ chats, currentUser }: ChatSidebarProps) {
                         {chat.is_group ? (
                           <Users className="h-4 w-4" />
                         ) : (
-                          getInitials(chat.display_name)
+                          getInitials(displayName)
                         )}
                       </AvatarFallback>
                     </Avatar>
+
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
                         <span
@@ -156,7 +175,7 @@ export function ChatSidebar({ chats, currentUser }: ChatSidebarProps) {
                             isActive ? "text-primary" : "text-foreground"
                           )}
                         >
-                          {chat.display_name}
+                          {displayName}
                         </span>
                         {lastMessage ? (
                           <span className="shrink-0 text-xs text-muted-foreground">
@@ -164,6 +183,7 @@ export function ChatSidebar({ chats, currentUser }: ChatSidebarProps) {
                           </span>
                         ) : null}
                       </div>
+
                       {lastMessage ? (
                         <p className="mt-0.5 truncate text-xs text-muted-foreground">
                           {lastMessage.content}
@@ -182,7 +202,11 @@ export function ChatSidebar({ chats, currentUser }: ChatSidebarProps) {
         <div className="flex items-center gap-3 px-3 py-3">
           <Link
             href="/chat/profile"
-            className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-1 py-1 transition-all hover:bg-muted/60"
+            className={cn(
+              "flex min-w-0 flex-1 items-center gap-3 rounded-xl px-1 py-1 transition-all hover:bg-muted/60",
+              pathname === "/chat/profile" &&
+                "bg-primary/10 text-primary hover:bg-primary/15"
+            )}
           >
             <Avatar className="h-8 w-8 shrink-0">
               {currentUser?.avatar_url ? (
@@ -197,6 +221,7 @@ export function ChatSidebar({ chats, currentUser }: ChatSidebarProps) {
                   : currentUser?.username?.slice(0, 2).toUpperCase() ?? "??"}
               </AvatarFallback>
             </Avatar>
+
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">
                 {currentUser?.display_name ?? currentUser?.username}
@@ -206,6 +231,20 @@ export function ChatSidebar({ chats, currentUser }: ChatSidebarProps) {
               </p>
             </div>
           </Link>
+
+          <Link
+            href="/chat/profile"
+            id="profile-button"
+            className={cn(
+              "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-all hover:bg-muted hover:text-foreground",
+              pathname === "/chat/profile" &&
+                "bg-primary/10 text-primary hover:bg-primary/15"
+            )}
+            title="Mein Profil"
+          >
+            <UserRound className="h-4 w-4" />
+          </Link>
+
           <form action={signOut}>
             <Button
               variant="ghost"

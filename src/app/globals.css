@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-sans: var(--app-font-sans);
+  --font-mono: var(--app-font-mono);
+  --font-heading: var(--app-font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,6 +49,10 @@
 }
 
 :root {
+  --app-font-sans:
+    "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --app-font-mono:
+    "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -127,4 +131,129 @@
   html {
     @apply font-sans;
   }
+}
+
+/* Leaflet Styles & Live Location Markers */
+@import "leaflet/dist/leaflet.css";
+
+.live-marker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px !important;
+  height: 40px !important;
+}
+
+.live-marker-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 9999px;
+  border: 2px solid oklch(var(--primary));
+  background-color: oklch(var(--card));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: oklch(var(--foreground));
+  box-shadow: 0 0 12px oklch(var(--primary) / 0.5);
+  z-index: 2;
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  transition: transform 0.2s ease;
+}
+
+.live-marker:hover .live-marker-avatar {
+  transform: scale(1.1);
+}
+
+.live-marker-pulse {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  background-color: oklch(var(--primary) / 0.25);
+  animation: live-pulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
+  z-index: 1;
+}
+
+@keyframes live-pulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+.live-marker-pulse-emerald {
+  background-color: color-mix(in srgb, var(--color-emerald-500) 25%, transparent) !important;
+}
+
+.live-marker-pulse-violet {
+  background-color: color-mix(in srgb, var(--color-violet-500) 25%, transparent) !important;
+}
+
+.live-marker-pulse-cyan {
+  background-color: color-mix(in srgb, var(--color-cyan-500) 25%, transparent) !important;
+}
+
+.live-marker-pulse-indigo {
+  background-color: color-mix(in srgb, var(--color-indigo-500) 25%, transparent) !important;
+}
+
+/* Custom styles to match the dark theme for the leaflet map wrapper */
+.leaflet-container {
+  background: oklch(var(--background)) !important;
+  color: oklch(var(--foreground)) !important;
+  font-family: inherit !important;
+}
+
+.leaflet-bar {
+  border: 1px solid oklch(var(--border)) !important;
+  box-shadow: none !important;
+  border-radius: var(--radius-md) !important;
+  overflow: hidden;
+}
+
+.leaflet-bar a {
+  background-color: oklch(var(--card)) !important;
+  color: oklch(var(--foreground)) !important;
+  border-bottom: 1px solid oklch(var(--border)) !important;
+  transition: background-color 0.2s;
+}
+
+.leaflet-bar a:hover {
+  background-color: oklch(var(--muted)) !important;
+  color: oklch(var(--foreground)) !important;
+}
+
+.leaflet-bar a.leaflet-disabled {
+  background-color: oklch(var(--muted) / 0.5) !important;
+  color: oklch(var(--muted-foreground)) !important;
+}
+
+.leaflet-popup-content-wrapper {
+  background: oklch(var(--card)) !important;
+  color: oklch(var(--card-foreground)) !important;
+  border: 1px solid oklch(var(--border)) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+  padding: 4px !important;
+}
+
+.leaflet-popup-tip {
+  background: oklch(var(--card)) !important;
+  border-left: 1px solid oklch(var(--border)) !important;
+  border-bottom: 1px solid oklch(var(--border)) !important;
+}
+
+.leaflet-popup-content {
+  margin: 8px 12px !important;
+  font-size: 13px !important;
+  line-height: 1.4 !important;
 }

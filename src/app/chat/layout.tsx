@@ -21,7 +21,7 @@ export default async function ChatLayout({
     .eq("id", user.id)
     .single();
 
-  // Chats des Nutzers laden (mit letzter Nachricht)
+  // Chats des Nutzers laden (mit letzter Nachricht und Mitgliedern für DMs)
   const { data: chatMembers } = await supabase
     .from("chat_members")
     .select(
@@ -35,6 +35,7 @@ export default async function ChatLayout({
         chat_members (
           user_id,
           profiles (
+            id,
             username,
             display_name,
             avatar_url
@@ -59,7 +60,9 @@ export default async function ChatLayout({
 
       const otherMember = chat.is_group
         ? null
-        : chat.chat_members?.find((chatMember) => chatMember.user_id !== user.id);
+        : chat.chat_members?.find(
+            (chatMember: { user_id: string }) => chatMember.user_id !== user.id
+          );
       const otherProfile = otherMember?.profiles as
         | {
             username: string;
