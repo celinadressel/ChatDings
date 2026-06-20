@@ -74,3 +74,14 @@ export const updateProfileSchema = z.object({
 });
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+
+export const sendFileMessageSchema = z.object({
+  chat_id: z.string().uuid("Ungültige Chat-ID"),
+  content: z.string().max(4000).optional(),
+  file_url: z.string().min(1, "Datei-Pfad fehlt"),
+  file_name: z.string().min(1).max(255),
+  file_type: z.string().min(1),
+  file_size: z.number().int().positive().max(20 * 1024 * 1024, "Datei zu groß (max. 20 MB)"),
+});
+
+export type SendFileMessageInput = z.infer<typeof sendFileMessageSchema>;

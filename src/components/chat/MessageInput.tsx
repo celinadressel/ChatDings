@@ -5,6 +5,7 @@ import { sendMessage } from "@/lib/actions/chat";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Send, Loader2 } from "lucide-react";
+import { FileUploadButton } from "@/components/chat/FileUploadButton";
 
 interface MessageInputProps {
   chatId: string;
@@ -35,6 +36,7 @@ export function MessageInput({ chatId }: MessageInputProps) {
     <div className="border-t border-border/50 bg-card/30 px-4 py-3">
       <form ref={formRef} action={handleSubmit} className="flex items-end gap-2">
         <input type="hidden" name="chat_id" value={chatId} />
+        <FileUploadButton chatId={chatId} />
         <Textarea
           ref={textareaRef}
           name="content"
