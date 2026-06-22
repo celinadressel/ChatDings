@@ -42,7 +42,8 @@ export function MessageInput({ chatId }: MessageInputProps) {
           name="content"
           id="message-input"
           placeholder="Nachricht schreiben… (Enter zum Senden, Shift+Enter für Zeilenumbruch)"
-          className="min-h-10 max-h-32 resize-none bg-muted/30 text-sm flex-1"
+          title="Nachricht schreiben… (Enter zum Senden, Shift+Enter für Zeilenumbruch)"
+          className="min-h-10 max-h-32 resize-none bg-muted/30 text-sm flex-1 placeholder:truncate"
           rows={1}
           onKeyDown={handleKeyDown}
           disabled={isPending}
