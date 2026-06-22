@@ -75,7 +75,7 @@ export const updateProfileSchema = z.object({
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 
-export const sendFileMessageSchema = z.object({
+export const sendFileMessageSchema = z.object({ //upload file message validation schema
   chat_id: z.string().uuid("Ungültige Chat-ID"),
   content: z.string().max(4000).optional(),
   file_url: z.string().min(1, "Datei-Pfad fehlt"),

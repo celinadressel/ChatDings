@@ -26,26 +26,33 @@ export function FileUploadButton({ chatId }: { chatId: string }) {
     const supabase = createClient();
 
     try {
+      // FIX: Authenticate and refresh stale browser tokens explicitly prior to storage uploads
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        throw new Error("Sitzung abgelaufen. Bitte laden Sie die Seite neu.");
+      }
+
       const ext = file.name.split(".").pop();
       const path = `${chatId}/${crypto.randomUUID()}.${ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from("chat-files")
-        .upload(path, file, { contentType: file.type });
+        .upload(path, file, { contentType: file.type, cacheControl: "3600" });
+      
       if (uploadError) throw uploadError;
 
       const result = await sendFileMessage({
         chat_id: chatId,
-        file_url: path, // Pfad speichern, NICHT eine URL — Bucket ist privat
+        file_url: path, // Private bucket pointer path
         file_name: file.name,
         file_type: file.type || "application/octet-stream",
         file_size: file.size,
       });
 
       if (result.error) alert(result.error);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Datei konnte nicht hochgeladen werden");
+      alert(err.message || "Datei konnte nicht hochgeladen werden");
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";

@@ -551,12 +551,13 @@ export function ChatContainer({
   const activeSharersCount = locations.length;
   const isAnyoneSharing = activeSharersCount > 0;
 
-  return (
+return (
     <div className="flex-1 flex flex-row min-w-0 h-full overflow-hidden relative">
       {/* LEFT PANEL: Chat Messages & Input */}
       <div
         className={cn(
-          "flex-1 flex flex-col h-full min-w-0 transition-all duration-300",
+          // FIX: min-h-0 hinzugefügt, um das unendliche Mitwachsen durch große Bilder zu verhindern
+          "flex-1 flex flex-col h-full min-w-0 min-h-0 transition-all duration-300",
           showMap && !isDesktop && "hidden" // Hide chat on mobile when map is open
         )}
       >
