@@ -82,7 +82,7 @@ export default async function ChatLayout({
           (chat.is_group
             ? "Gruppe"
             : otherProfile?.display_name ?? otherProfile?.username ?? "Direkt-Chat"),
-        avatar_url: otherProfile?.avatar_url ?? null,
+        avatar_url: chat.is_group ? chat.avatar_url : (otherProfile?.avatar_url ?? null),
       };
     })
     .filter((chat): chat is NonNullable<ChatEntry> & {
