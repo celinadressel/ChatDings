@@ -15,6 +15,7 @@ import {
   Search,
   UserRound,
   Users,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NewChatDialog } from "@/components/chat/NewChatDialog";
@@ -101,6 +102,7 @@ function getChatDisplayData(chat: Chat, currentUser: Profile | null) {
 
 export function ChatSidebar({ chats, currentUser }: ChatSidebarProps) {
   const pathname = usePathname();
+  const [searchQuery, setSearchQuery] = useState("");
   const [unreadChatIds, setUnreadChatIds] = useState<Set<string>>(new Set());
   // Keep a stable ref of known chat IDs so the subscription closure doesn't go stale
   const chatIdsRef = useRef<string[]>(chats.map((c) => c.id));
@@ -182,22 +184,63 @@ export function ChatSidebar({ chats, currentUser }: ChatSidebarProps) {
         </div>
 
         <div className="px-3 py-2">
-          <div className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-            <Search className="h-4 w-4 shrink-0" />
-            <span>Suche...</span>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <input
+              type="text"
+              id="sidebar-search"
+              placeholder="Chats suchen…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full rounded-lg bg-muted/40 pl-9 pr-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary/50 transition-all"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Suche leeren"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </div>
 
         <ScrollArea className="flex-1 px-2">
-          {chats.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">
-              <MessageSquare className="h-8 w-8 opacity-40" />
-              <p>Noch keine Chats.</p>
-              <p className="text-xs">Klicke auf + um einen zu starten.</p>
-            </div>
-          ) : (
-            <div className="space-y-1 py-1">
-              {chats.map((chat) => {
+          {(() => {
+            // Filter chats by search query (client-side)
+            const filteredChats = searchQuery.trim()
+              ? chats.filter((chat) => {
+                  const { displayName } = getChatDisplayData(chat, currentUser);
+                  return displayName
+                    .toLowerCase()
+                    .includes(searchQuery.toLowerCase());
+                })
+              : chats;
+
+            if (chats.length === 0) {
+              return (
+                <div className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">
+                  <MessageSquare className="h-8 w-8 opacity-40" />
+                  <p>Noch keine Chats.</p>
+                  <p className="text-xs">Klicke auf + um einen zu starten.</p>
+                </div>
+              );
+            }
+
+            if (filteredChats.length === 0) {
+              return (
+                <div className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">
+                  <Search className="h-8 w-8 opacity-40" />
+                  <p>Keine Chats gefunden.</p>
+                  <p className="text-xs">Versuche einen anderen Suchbegriff.</p>
+                </div>
+              );
+            }
+
+            return (
+              <div className="space-y-1 py-1">
+              {filteredChats.map((chat) => {
                 const isActive = pathname === `/chat/${chat.id}`;
                 const lastMessage = chat.messages?.[chat.messages.length - 1];
                 const { displayName, avatarUrl } = getChatDisplayData(
@@ -284,7 +327,8 @@ export function ChatSidebar({ chats, currentUser }: ChatSidebarProps) {
                 );
               })}
             </div>
-          )}
+            );
+          })()}
         </ScrollArea>
 
         <Separator />
