@@ -14,45 +14,47 @@ export default async function ChatLayout({
 
   if (!user) redirect("/login");
 
-  // Profile des aktuellen Nutzers laden
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
-  // Chats des Nutzers laden (mit letzter Nachricht und Mitgliedern für DMs)
-  const { data: chatMembers } = await supabase
-    .from("chat_members")
-    .select(
-      `
-      chat_id,
-      chats (
-        id,
-        name,
-        is_group,
-        created_at,
-        chat_members (
-          user_id,
-          profiles (
-            id,
-            username,
-            display_name,
-            avatar_url
-          )
-        ),
-        messages (
-          content,
+  // Parallelize root fetching & drastically limit message scans to only the single latest item
+  const [profileResponse, membersResponse] = await Promise.all([
+    supabase.from("profiles").select("*").eq("id", user.id).single(),
+    supabase
+      .from("chat_members")
+      .select(
+        `
+        chat_id,
+        chats (
+          id,
+          name,
+          is_group,
           created_at,
-          sender_id
+          chat_members (
+            user_id,
+            profiles (
+              id,
+              username,
+              display_name,
+              avatar_url
+            )
+          ),
+          messages (
+            content,
+            created_at,
+            sender_id
+          )
         )
+      `
       )
-    `
-    )
-    .eq("user_id", user.id)
-    .order("joined_at", { ascending: false });
+      .eq("user_id", user.id)
+      .order("joined_at", { ascending: false })
+      // Critical optimization: Only pull down the latest message metadata for the sidebar preview
+      .limit(1, { foreignTable: "chats.messages" }) 
+  ]);
+
+  const profile = profileResponse.data;
+  const chatMembers = membersResponse.data;
 
   type ChatEntry = NonNullable<typeof chatMembers>[0]["chats"];
+  
   const chats = (chatMembers ?? [])
     .map((member) => {
       const chat = member.chats;

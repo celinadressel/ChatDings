@@ -199,19 +199,19 @@ export async function removeChatMember(chatId: string, userId: string) {
   return { success: true };
 }
 
-export async function sendFileMessage(input: SendFileMessageInput) {
+export async function sendFileMessage(input: SendFileMessageInput) { //server action to send a message with a file attachment
   const parsed = sendFileMessageSchema.safeParse(input);
   if (!parsed.success) {
     return { error: parsed.error.issues[0].message };
   }
 
-  const supabase = await createClient();
+  const supabase = await createClient(); //create supabase client with server-side authentication
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Nicht authentifiziert" };
 
-  const { error } = await supabase.from("messages").insert({
+  const { error } = await supabase.from("messages").insert({ //insert new message with file attachment into the database
     chat_id: parsed.data.chat_id,
     sender_id: user.id,
     content: parsed.data.content ?? "",
@@ -223,6 +223,6 @@ export async function sendFileMessage(input: SendFileMessageInput) {
 
   if (error) return { error: error.message };
 
-  revalidatePath(`/chat/${parsed.data.chat_id}`);
+  revalidatePath(`/chat/${parsed.data.chat_id}`); //revalidate the chat page to show the new message
   return { success: true };
 }

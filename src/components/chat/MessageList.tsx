@@ -50,16 +50,8 @@ export function MessageList({ messages, currentUserId }: MessageListProps) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  if (messages.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-        Noch keine Nachrichten. Schreib etwas!
-      </div>
-    );
-  }
-
   return (
-    <ScrollArea className="flex-1 px-4 py-4">
+    <ScrollArea className="flex-1 h-full min-h-0 w-full px-4 py-4">
       <div className="space-y-4">
         {messages.map((message, idx) => {
           const isOwn = message.sender_id === currentUserId;
