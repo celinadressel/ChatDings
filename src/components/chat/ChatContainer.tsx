@@ -125,6 +125,7 @@ export function ChatContainer({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const shareWithAllRef = useRef<boolean>(false);
   const lastPositionRef = useRef<{ latitude: number; longitude: number; accuracy: number | null } | null>(null);
+  const mapSidebarScrollRef = useRef<HTMLDivElement>(null);
 
   const isMounted = useRef<boolean>(true);
   useEffect(() => {
@@ -605,18 +606,20 @@ return (
             </Button>
           </div>
 
-          {/* Map Container */}
-          <div className="flex-1 min-h-[300px] relative p-2">
-            <MapComponent
-              key={chatId}
-              locations={locations}
-              currentUserId={currentUserId}
-              focusedUserId={focusedUserId}
-            />
-          </div>
+          {/* Scrollable content wrapper */}
+          <div ref={mapSidebarScrollRef} className="flex-1 min-h-0 overflow-y-auto">
+            {/* Map Container */}
+            <div className="h-[300px] relative p-2 shrink-0">
+              <MapComponent
+                key={chatId}
+                locations={locations}
+                currentUserId={currentUserId}
+                focusedUserId={focusedUserId}
+              />
+            </div>
 
-          {/* Sharing Controls Dashboard */}
-          <div className="p-4 border-t border-border/50 bg-card/40 backdrop-blur-sm space-y-4 shrink-0">
+            {/* Sharing Controls Dashboard */}
+            <div className="p-4 border-t border-border/50 bg-card/40 backdrop-blur-sm space-y-4">
             {isSharing ? (
               <div className={cn(
                 "rounded-xl border p-3.5 space-y-3 transition-all duration-300",
@@ -791,7 +794,10 @@ return (
                     return (
                       <button
                         key={loc.user_id}
-                        onClick={() => setFocusedUserId(loc.user_id === focusedUserId ? null : loc.user_id)}
+                        onClick={() => {
+                          setFocusedUserId(loc.user_id === focusedUserId ? null : loc.user_id);
+                          mapSidebarScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
                         className={cn(
                           "w-full flex items-center justify-between p-2 rounded-lg text-left text-xs transition-all hover:bg-muted/50 border border-transparent",
                           isFocused && "bg-primary/10 border-primary/20"
@@ -822,6 +828,7 @@ return (
                 </div>
               </div>
             )}
+          </div>
           </div>
         </div>
       )}
