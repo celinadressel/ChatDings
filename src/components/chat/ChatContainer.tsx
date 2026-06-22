@@ -584,7 +584,7 @@ return (
           )}
         >
           {/* Dashboard Header */}
-          <div className="flex items-center justify-between p-4 border-b border-border/50 shrink-0">
+          <div className="flex h-[60px] items-center justify-between px-4 border-b border-border/50 shrink-0">
             <div className="flex items-center gap-2">
               <MapIcon className="h-5 w-5 text-primary" />
               <span className="font-semibold text-sm">Live-Standorte</span>
