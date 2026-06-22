@@ -103,7 +103,7 @@ export function ChatSidebar({ chats, currentUser }: ChatSidebarProps) {
   return (
     <aside className="w-80 shrink-0 border-r border-border/50 bg-card/30 backdrop-blur-sm">
       <div className="flex h-full flex-col">
-        <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
+        <div className="flex h-[60px] items-center justify-between border-b border-border/50 px-4 shrink-0">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
               <MessageSquare className="h-4 w-4 text-primary-foreground" />
@@ -199,7 +199,7 @@ export function ChatSidebar({ chats, currentUser }: ChatSidebarProps) {
 
         <Separator />
 
-        <div className="flex items-center gap-3 px-3 py-3">
+        <div className="flex h-[64px] items-center gap-3 px-3 shrink-0">
           <Link
             href="/chat/profile"
             className={cn(
