@@ -68,6 +68,8 @@ export default async function ChatPage({ params }: ChatPageProps) {
         otherProfile.display_name ?? otherProfile.username ?? chatDisplayName;
       chatAvatarUrl = otherProfile.avatar_url ?? null;
     }
+  } else if (chat.is_group) {
+    chatAvatarUrl = chat.avatar_url ?? null;
   }
 
   // Format type matching for TS
@@ -108,6 +110,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
       members={formattedMembers}
       currentUserId={user.id}
       chatDisplayName={chatDisplayName}
+      chatAvatarUrl={chatAvatarUrl}
     />
   );
 }

@@ -42,6 +42,7 @@ export interface Database {
         Row: {
           id: string;
           name: string | null;
+          avatar_url: string | null;
           is_group: boolean;
           created_at: string;
           created_by: string | null;
@@ -49,12 +50,14 @@ export interface Database {
         Insert: {
           id?: string;
           name?: string | null;
+          avatar_url?: string | null;
           is_group?: boolean;
           created_at?: string;
           created_by?: string | null;
         };
         Update: {
           name?: string | null;
+          avatar_url?: string | null;
           is_group?: boolean;
           created_by?: string | null;
         };

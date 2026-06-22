@@ -113,6 +113,13 @@ CREATE POLICY "chats_insert_authenticated"
   TO authenticated
   WITH CHECK (true);
 
+-- Nur Chat-Admins dürfen Chats updaten (Namen / Profilbild ändern)
+CREATE POLICY "chats_update_admin"
+  ON public.chats FOR UPDATE
+  TO authenticated
+  USING (public.is_chat_admin(id, auth.uid()))
+  WITH CHECK (public.is_chat_admin(id, auth.uid()));
+
 -- chat_members: nur Mitglieder sehen Memberships
 CREATE POLICY "chat_members_select_member"
   ON public.chat_members FOR SELECT
@@ -136,6 +143,13 @@ CREATE POLICY "chat_members_delete_member"
     user_id = auth.uid() OR
     public.is_chat_admin(chat_id, auth.uid())
   );
+
+-- Nur Chat-Admins dürfen Rollen updaten (Befördern)
+CREATE POLICY "chat_members_update_admin"
+  ON public.chat_members FOR UPDATE
+  TO authenticated
+  USING (public.is_chat_admin(chat_id, auth.uid()))
+  WITH CHECK (public.is_chat_admin(chat_id, auth.uid()));
 
 -- messages: nur Mitglieder lesen & schreiben
 CREATE POLICY "messages_select_member"

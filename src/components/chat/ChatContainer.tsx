@@ -75,6 +75,7 @@ interface ChatContainerProps {
   members: Member[];
   currentUserId: string;
   chatDisplayName: string;
+  chatAvatarUrl?: string | null;
 }
 
 interface LocationData {
@@ -101,6 +102,7 @@ export function ChatContainer({
   members,
   currentUserId,
   chatDisplayName,
+  chatAvatarUrl,
 }: ChatContainerProps) {
   const supabase = createClient();
   const memberIds = useMemo(() => members.map((m) => m.user_id), [members]);
@@ -577,6 +579,7 @@ return (
           members={members}
           currentUserRole={currentUserRole}
           currentUserId={currentUserId}
+          avatarUrl={chatAvatarUrl}
         />
         <MessageList messages={messages} currentUserId={currentUserId} />
         <MessageInput chatId={chatId} />

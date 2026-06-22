@@ -25,6 +25,7 @@ export default async function ChatLayout({
         chats (
           id,
           name,
+          avatar_url,
           is_group,
           created_at,
           chat_members (
