@@ -49,6 +49,10 @@ interface Message {
   content: string;
   created_at: string;
   sender_id: string | null;
+  file_url: string | null;
+  file_name: string | null;
+  file_type: string | null;
+  file_size: number | null;
   profiles: {
     username: string;
     display_name: string | null;
@@ -175,6 +179,10 @@ export function ChatContainer({
             content: newMsg.content,
             created_at: newMsg.created_at,
             sender_id: newMsg.sender_id,
+            file_url: newMsg.file_url ?? null,
+            file_name: newMsg.file_name ?? null,
+            file_type: newMsg.file_type ?? null,
+            file_size: newMsg.file_size ?? null,
             profiles: profile,
           };
 

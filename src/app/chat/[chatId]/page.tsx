@@ -89,6 +89,10 @@ export default async function ChatPage({ params }: ChatPageProps) {
     content: m.content,
     created_at: m.created_at,
     sender_id: m.sender_id,
+    file_url: m.file_url,
+    file_name: m.file_name,
+    file_type: m.file_type,
+    file_size: m.file_size,
     profiles: m.profiles as {
       username: string;
       display_name: string | null;

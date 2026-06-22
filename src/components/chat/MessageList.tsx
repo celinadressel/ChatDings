@@ -4,12 +4,17 @@ import { useRef, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { FileAttachment } from "@/components/chat/FileAttachment";
 
 interface Message {
   id: string;
   content: string;
   created_at: string;
   sender_id: string | null;
+  file_url: string | null;
+  file_name: string | null;
+  file_type: string | null;
+  file_size: number | null;
   profiles: {
     username: string;
     display_name: string | null;
@@ -111,16 +116,26 @@ export function MessageList({ messages, currentUserId }: MessageListProps) {
                     {senderName}
                   </span>
                 )}
-                <div
-                  className={cn(
-                    "rounded-2xl px-4 py-2 text-sm leading-relaxed shadow-sm",
-                    isOwn
-                      ? "rounded-br-sm bg-primary text-primary-foreground"
-                      : "rounded-bl-sm bg-muted/60 text-foreground"
-                  )}
-                >
-                  {message.content}
-                </div>
+                {message.file_url && (
+                  <FileAttachment
+                    fileUrl={message.file_url}
+                    fileName={message.file_name ?? "Datei"}
+                    fileType={message.file_type ?? "application/octet-stream"}
+                    fileSize={message.file_size ?? 0}
+                  />
+                )}
+                {message.content && (
+                  <div
+                    className={cn(
+                      "rounded-2xl px-4 py-2 text-sm leading-relaxed shadow-sm",
+                      isOwn
+                        ? "rounded-br-sm bg-primary text-primary-foreground"
+                        : "rounded-bl-sm bg-muted/60 text-foreground"
+                    )}
+                  >
+                    {message.content}
+                  </div>
+                )}
                 <span className="text-[10px] text-muted-foreground px-1">
                   {formatTime(message.created_at)}
                 </span>

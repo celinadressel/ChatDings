@@ -110,6 +110,10 @@ export interface Database {
           created_at: string;
           updated_at: string;
           is_deleted: boolean;
+          file_url: string | null;
+          file_name: string | null;
+          file_type: string | null;
+          file_size: number | null;
         };
         Insert: {
           id?: string;
@@ -119,11 +123,19 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
           is_deleted?: boolean;
+          file_url?: string | null;
+          file_name?: string | null;
+          file_type?: string | null;
+          file_size?: number | null;
         };
         Update: {
           content?: string;
           updated_at?: string;
           is_deleted?: boolean;
+          file_url?: string | null;
+          file_name?: string | null;
+          file_type?: string | null;
+          file_size?: number | null;
         };
         Relationships: [
           {
