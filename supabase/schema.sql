@@ -22,10 +22,14 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 CREATE TABLE IF NOT EXISTS public.chats (
   id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name        TEXT,               -- NULL bei DMs
+  avatar_url  TEXT,               -- Gruppen-Profilbild (URL)
   is_group    BOOLEAN DEFAULT FALSE NOT NULL,
   created_by  UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_at  TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
+
+-- Migration: avatar_url zu bestehenden chats-Tabellen hinzufügen (falls Schema schon eingespielt wurde)
+-- ALTER TABLE public.chats ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 
 -- ─── Tabelle: chat_members ────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.chat_members (

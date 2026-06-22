@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   sendMessageSchema,
   createChatSchema,
+  updateGroupSchema,
   sendFileMessageSchema,
   type SendFileMessageInput,
 } from "@/lib/validations";
@@ -224,5 +225,77 @@ export async function sendFileMessage(input: SendFileMessageInput) { //server ac
   if (error) return { error: error.message };
 
   revalidatePath(`/chat/${parsed.data.chat_id}`); //revalidate the chat page to show the new message
+  return { success: true };
+}
+
+export async function updateGroupChat(input: {
+  chat_id: string;
+  name: string;
+  avatar_url?: string;
+}) {
+  const parsed = updateGroupSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0].message };
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Nicht authentifiziert" };
+
+  // Only admins may edit the group
+  const { data: membership } = await supabase
+    .from("chat_members")
+    .select("role")
+    .eq("chat_id", parsed.data.chat_id)
+    .eq("user_id", user.id)
+    .single();
+
+  if (!membership || membership.role !== "admin") {
+    return { error: "Nur Admins können die Gruppe bearbeiten" };
+  }
+
+  const updates: Record<string, unknown> = { name: parsed.data.name };
+  if (parsed.data.avatar_url !== undefined) {
+    updates.avatar_url = parsed.data.avatar_url || null;
+  }
+
+  const { error } = await supabase
+    .from("chats")
+    .update(updates as any)
+    .eq("id", parsed.data.chat_id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/chat/${parsed.data.chat_id}`);
+  revalidatePath("/chat", "layout");
+  return { success: true };
+}
+
+export async function promoteMember(chatId: string, targetUserId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Nicht authentifiziert" };
+
+  // Check caller is admin
+  const { data: membership } = await supabase
+    .from("chat_members")
+    .select("role")
+    .eq("chat_id", chatId)
+    .eq("user_id", user.id)
+    .single();
+
+  if (!membership || membership.role !== "admin") {
+    return { error: "Nur Admins können Mitglieder befördern" };
+  }
+
+  const { error } = await supabase
+    .from("chat_members")
+    .update({ role: "admin" })
+    .eq("chat_id", chatId)
+    .eq("user_id", targetUserId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/chat/${chatId}`);
   return { success: true };
 }

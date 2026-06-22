@@ -104,6 +104,10 @@ export function ChatContainer({
 }: ChatContainerProps) {
   const supabase = createClient();
   const memberIds = useMemo(() => members.map((m) => m.user_id), [members]);
+  const currentUserRole = useMemo(
+    () => members.find((m) => m.user_id === currentUserId)?.role ?? "member",
+    [members, currentUserId]
+  );
 
   // Realtime messages state
   const [messages, setMessages] = useState<Message[]>(initialMessages);
@@ -570,6 +574,9 @@ return (
           isMapOpen={showMap}
           isSharingActive={isSharing}
           activeSharersCount={activeSharersCount}
+          members={members}
+          currentUserRole={currentUserRole}
+          currentUserId={currentUserId}
         />
         <MessageList messages={messages} currentUserId={currentUserId} />
         <MessageInput chatId={chatId} />

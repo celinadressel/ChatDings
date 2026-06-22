@@ -48,6 +48,21 @@ export const createChatSchema = z.object({
 
 export type CreateChatInput = z.infer<typeof createChatSchema>;
 
+export const updateGroupSchema = z.object({
+  chat_id: z.string().uuid("Ungültige Chat-ID"),
+  name: z.string().min(1, "Gruppenname darf nicht leer sein").max(100),
+  avatar_url: z
+    .string()
+    .trim()
+    .optional()
+    .refine(
+      (v) => !v || /^https?:\/\/.+/i.test(v),
+      "Profilbild muss eine gültige URL sein"
+    ),
+});
+
+export type UpdateGroupInput = z.infer<typeof updateGroupSchema>;
+
 export const updateProfileSchema = z.object({
   username: z
     .string()
