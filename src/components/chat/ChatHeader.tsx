@@ -205,9 +205,12 @@ export function ChatHeader({
         {/* Avatar */}
         <div className="shrink-0">
           {isGroup ? (
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted">
-              <Users className="h-4 w-4 text-violet-400" />
-            </div>
+            <Avatar className="h-9 w-9 rounded-xl">
+              {avatarUrl ? <AvatarImage src={avatarUrl} alt={chatName} className="rounded-xl object-cover" /> : null}
+              <AvatarFallback className="bg-violet-500/20 text-violet-400 rounded-xl">
+                <Users className="h-4 w-4" />
+              </AvatarFallback>
+            </Avatar>
           ) : (
             <Avatar className="h-9 w-9">
               {avatarUrl ? <AvatarImage src={avatarUrl} alt={chatName} /> : null}
