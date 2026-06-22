@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
 import { signOut } from "@/lib/actions/auth";
+import { createClient } from "@/lib/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -99,6 +101,72 @@ function getChatDisplayData(chat: Chat, currentUser: Profile | null) {
 
 export function ChatSidebar({ chats, currentUser }: ChatSidebarProps) {
   const pathname = usePathname();
+  const [unreadChatIds, setUnreadChatIds] = useState<Set<string>>(new Set());
+  // Keep a stable ref of known chat IDs so the subscription closure doesn't go stale
+  const chatIdsRef = useRef<string[]>(chats.map((c) => c.id));
+  // Mirror pathname in a ref so the Realtime callback always reads the current value
+  // without needing to re-subscribe every time the user navigates
+  const pathnameRef = useRef(pathname);
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
+
+  // Sync ref when chats prop changes
+  useEffect(() => {
+    chatIdsRef.current = chats.map((c) => c.id);
+  }, [chats]);
+
+  // Clear unread indicator when the user navigates to a chat
+  useEffect(() => {
+    const activeChatId = pathname.startsWith("/chat/")
+      ? pathname.split("/chat/")[1]
+      : null;
+    if (activeChatId) {
+      setUnreadChatIds((prev) => {
+        if (!prev.has(activeChatId)) return prev; // no-op if already clean
+        const next = new Set(prev);
+        next.delete(activeChatId);
+        return next;
+      });
+    }
+  }, [pathname]);
+
+  // Subscribe to all new messages across all chats the user is a member of
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel("sidebar-unread-messages")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        (payload) => {
+          const newMsg = payload.new as { chat_id: string; sender_id: string };
+          // RLS guarantees we only receive messages for chats we're a member of.
+          // Only mark as unread if this is NOT the chat currently open.
+          const currentPath = pathnameRef.current;
+          const activeChatId = currentPath.startsWith("/chat/")
+            ? currentPath.split("/chat/")[1]
+            : null;
+          if (newMsg.chat_id !== activeChatId) {
+            setUnreadChatIds((prev) => {
+              if (prev.has(newMsg.chat_id)) return prev; // already marked
+              const next = new Set(prev);
+              next.add(newMsg.chat_id);
+              return next;
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  // We intentionally omit `pathname` from deps – we read it via the closure
+  // at event-time which is fine; the effect only needs to (re-)subscribe once.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   return (
     <aside className="w-80 shrink-0 border-r border-border/50 bg-card/30 backdrop-blur-sm">
@@ -137,6 +205,8 @@ export function ChatSidebar({ chats, currentUser }: ChatSidebarProps) {
                   currentUser
                 );
 
+                const hasUnread = unreadChatIds.has(chat.id);
+
                 return (
                   <Link
                     key={chat.id}
@@ -147,45 +217,65 @@ export function ChatSidebar({ chats, currentUser }: ChatSidebarProps) {
                       isActive && "bg-primary/10 hover:bg-primary/15"
                     )}
                   >
-                    <Avatar className="h-10 w-10 shrink-0">
-                      {avatarUrl ? (
-                        <AvatarImage src={avatarUrl} alt={displayName} />
-                      ) : null}
-                      <AvatarFallback
-                        className={cn(
-                          "text-xs font-semibold",
-                          chat.is_group
-                            ? "bg-violet-500/20 text-violet-400"
-                            : "bg-blue-500/20 text-blue-400"
-                        )}
-                      >
-                        {chat.is_group ? (
-                          <Users className="h-4 w-4" />
-                        ) : (
-                          getInitials(displayName)
-                        )}
-                      </AvatarFallback>
-                    </Avatar>
+                    <div className="relative shrink-0">
+                      <Avatar className="h-10 w-10">
+                        {avatarUrl ? (
+                          <AvatarImage src={avatarUrl} alt={displayName} />
+                        ) : null}
+                        <AvatarFallback
+                          className={cn(
+                            "text-xs font-semibold",
+                            chat.is_group
+                              ? "bg-violet-500/20 text-violet-400"
+                              : "bg-blue-500/20 text-blue-400"
+                          )}
+                        >
+                          {chat.is_group ? (
+                            <Users className="h-4 w-4" />
+                          ) : (
+                            getInitials(displayName)
+                          )}
+                        </AvatarFallback>
+                      </Avatar>
+                      {/* Unread indicator dot */}
+                      {hasUnread && (
+                        <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 ring-2 ring-background" />
+                        </span>
+                      )}
+                    </div>
 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
                         <span
                           className={cn(
                             "truncate text-sm font-medium",
-                            isActive ? "text-primary" : "text-foreground"
+                            isActive ? "text-primary" : "text-foreground",
+                            hasUnread && !isActive && "font-semibold text-foreground"
                           )}
                         >
                           {displayName}
                         </span>
                         {lastMessage ? (
-                          <span className="shrink-0 text-xs text-muted-foreground">
+                          <span className={cn(
+                            "shrink-0 text-xs",
+                            hasUnread && !isActive
+                              ? "text-emerald-400 font-medium"
+                              : "text-muted-foreground"
+                          )}>
                             {formatTime(lastMessage.created_at)}
                           </span>
                         ) : null}
                       </div>
 
                       {lastMessage ? (
-                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                        <p className={cn(
+                          "mt-0.5 truncate text-xs",
+                          hasUnread && !isActive
+                            ? "text-foreground/80 font-medium"
+                            : "text-muted-foreground"
+                        )}>
                           {lastMessage.content}
                         </p>
                       ) : null}
