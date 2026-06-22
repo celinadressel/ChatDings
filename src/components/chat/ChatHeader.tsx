@@ -160,7 +160,7 @@ export function ChatHeader({
 
   return (
     <>
-      <header className="flex items-center gap-3 border-b border-border/50 bg-card/30 backdrop-blur-sm px-4 py-3 shrink-0">
+      <header className="flex h-[60px] items-center gap-3 border-b border-border/50 bg-card/30 backdrop-blur-sm px-4 shrink-0">
         <Link href="/chat" className="md:hidden">
           <Button variant="ghost" size="icon" className="h-8 w-8">
             <ArrowLeft className="h-4 w-4" />
